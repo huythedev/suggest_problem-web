@@ -510,28 +510,49 @@ function renderTable() {
   // Get selected OJs from checkboxes
   const selectedOJs = Array.from(document.querySelectorAll('.oj-filter-checkbox:checked')).map(cb => cb.value);
 
+  // Get filter tags, convert to lowercase, trim, and remove empty ones
   const tagsFilter = filterTags.value.toLowerCase().split(',').map(t => t.trim()).filter(t => t);
   const mode = filterMode.value;
 
   // Filter logic using selectedOJs
   const indexed = tasks.map((task, i) => ({ task, i }));
   let filtered = indexed.filter(({ task }) => {
-    // Updated OJ matching logic
+    // OJ matching logic (remains the same)
     const matchOJ = selectedOJs.length === 0 || selectedOJs.includes(task.oj);
 
-    const tags = task.tags ? task.tags.map(t => t.toLowerCase()) : [];
-    let matchTags = true;
-    if (tagsFilter.length) {
-      matchTags = mode === 'or' ? tagsFilter.some(f => tags.includes(f)) : tagsFilter.every(f => tags.includes(f));
+    // --- Refined Tag Filtering Logic ---
+    // Join the task's tags into a single lowercase string for searching. Handle case where tags might be null/undefined.
+    const taskTagsString = task.tags ? task.tags.join(', ').toLowerCase() : '';
+    let matchTags = true; // Assume match if no filter tags are entered
+
+    if (tagsFilter.length > 0) { // Only apply tag filter if there are filter terms
+        if (mode === 'or') {
+            // OR mode: Check if *any* filter tag is included (partially) in the task's tags string
+            matchTags = tagsFilter.some(filterTag => taskTagsString.includes(filterTag));
+        } else { // mode === 'and'
+            // AND mode: Check if *all* filter tags are included (partially) in the task's tags string
+            matchTags = tagsFilter.every(filterTag => taskTagsString.includes(filterTag));
+        }
     }
-    return matchOJ && matchTags;
+    // --- End Refined Tag Filtering Logic ---
+
+    return matchOJ && matchTags; // Return true only if both OJ and Tag conditions are met
   });
 
-  // ... Sort logic ...
+  // Sorting logic (remains the same)
   if (sortKey) {
     filtered.sort((a, b) => {
       let va = a.task[sortKey]; let vb = b.task[sortKey];
-      if (!isNaN(va)) va = parseFloat(va); if (!isNaN(vb)) vb = parseFloat(vb);
+      // Attempt numeric conversion for sorting if possible
+      const numA = parseFloat(va);
+      const numB = parseFloat(vb);
+      if (!isNaN(numA) && !isNaN(numB)) {
+          va = numA;
+          vb = numB;
+      } else { // Fallback to string comparison if not numeric
+          va = String(va).toLowerCase();
+          vb = String(vb).toLowerCase();
+      }
       return va < vb ? (sortAsc ? -1 : 1) : va > vb ? (sortAsc ? 1 : -1) : 0;
     });
   }
@@ -541,11 +562,13 @@ function renderTable() {
   if (filtered.length === 0) {
     // Add a visible message when no problems are found
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="8" style="text-align: center; padding: 20px;">No problems found. Click "Add Task" to add your first problem.</td>';
+    // Adjust colspan based on the actual number of columns in your table header
+    tr.innerHTML = '<td colspan="8" style="text-align: center; padding: 20px;">No problems match the current filters.</td>';
     tbody.appendChild(tr);
     return;
   }
 
+  // Table row generation (remains the same)
   filtered.forEach(({ task, i }) => {
     const tr = document.createElement('tr');
 
