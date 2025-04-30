@@ -9,7 +9,7 @@ let tbody, modal, modalTitle, btnSubmit, btnAdd, btnCancel, filterTags, filterMo
 // Custom OJ Filter elements
 let ojFilterBtn, ojFilterDropdown, ojFilterCheckboxes;
 // Modal input elements for fetching and link
-let inputOj, inputCode, inputRating, inputProblemLink, inputTitle;
+let inputOj, inputCode, inputRating, inputProblemLink, inputTitle, inputTags, inputCustom; // Add inputCustom variable
 
 // Load data from backend
 async function loadData() {
@@ -69,14 +69,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   inputRating = document.getElementById('input-rating');
   inputProblemLink = document.getElementById('input-problem-link');
   inputTitle = document.getElementById('input-title'); // Assign title input
+  inputTags = document.getElementById('input-tags'); // Assign tags input
+  inputCustom = document.getElementById('input-custom'); // Assign custom input
 
   // Verify elements are found (update check)
-  if (!tbody || !modal || !modalTitle || !btnSubmit || /* btnAdd might be null */ !btnCancel || !ojFilterBtn || !ojFilterDropdown || !filterTags || !filterMode || !inputOj || !inputCode || !inputRating || !inputProblemLink || !inputTitle) { // Add inputTitle check
+  if (!tbody || !modal || !modalTitle || !btnSubmit || /* btnAdd might be null */ !btnCancel || !ojFilterBtn || !ojFilterDropdown || !filterTags || !filterMode || !inputOj || !inputCode || !inputRating || !inputProblemLink || !inputTitle || !inputTags || !inputCustom) { // Add inputCustom check
       console.error("Error: One or more essential DOM elements not found!");
       // Don't return immediately if btnAdd is the only missing one (public view)
       if (!btnAdd && document.body.classList.contains('public-view')) {
           console.log("Note: Add button not found, likely public view.");
-      } else if (!tbody || !modal || !modalTitle || !btnSubmit || !btnCancel || !ojFilterBtn || !ojFilterDropdown || !filterTags || !filterMode || !inputOj || !inputCode || !inputRating || !inputProblemLink || !inputTitle) { // Add inputTitle check
+      } else if (!tbody || !modal || !modalTitle || !btnSubmit || !btnCancel || !ojFilterBtn || !ojFilterDropdown || !filterTags || !filterMode || !inputOj || !inputCode || !inputRating || !inputProblemLink || !inputTitle || !inputTags || !inputCustom) { // Add inputCustom check
           return; // Stop if other critical elements missing
       }
   }
@@ -170,9 +172,10 @@ async function handleOjOrCodeChange() {
     await maybeFetchLuoguData(oj, code); // Pass oj and code
 }
 
-// Function to attempt fetching Luogu data (Rating AND Title)
+// Function to attempt fetching details (Rating, Title, Tags, Custom)
 async function maybeFetchLuoguData(oj, code) {
-    const supportedOJs = ["SPOJ", "Codeforces", "AtCoder", "UVA"];
+    // Add Luogu to supported OJs for fetching
+    const supportedOJs = ["SPOJ", "Codeforces", "AtCoder", "UVA", "Luogu"];
 
     console.log(`[maybeFetchLuoguData] Triggered. OJ: "${oj}", Code: "${code}"`);
 
@@ -180,16 +183,22 @@ async function maybeFetchLuoguData(oj, code) {
     console.log(`[maybeFetchLuoguData] Conditions check: supportedOJ=${supportedOJs.includes(oj)}, hasCode=${!!code}. Should Fetch: ${shouldFetch}`);
 
     if (shouldFetch) {
-        console.log(`[maybeFetchLuoguData] Attempting to fetch Luogu details for ${oj} - ${code}`);
-        // Set placeholders for both fields
+        console.log(`[maybeFetchLuoguData] Attempting to fetch details for ${oj} - ${code}`);
+        // Set placeholders
         inputRating.placeholder = "Fetching Rating...";
-        // Fetch title only if the field is currently empty
         const fetchTitle = !inputTitle.value.trim();
-        if (fetchTitle) {
-            inputTitle.placeholder = "Fetching Title...";
-        }
-        // Clear existing rating value
+        if (fetchTitle) inputTitle.placeholder = "Fetching Title...";
+        // Set tags placeholder if field is empty
+        const fetchTags = !inputTags.value.trim();
+        if (fetchTags) inputTags.placeholder = "Fetching Tags...";
+        // Only set custom placeholder if OJ is AtCoder
+        const fetchCustom = oj === 'AtCoder' && !inputCustom.value.trim();
+        if (fetchCustom) inputCustom.placeholder = "Fetching Custom...";
+        // Luogu doesn't have a separate 'custom' field to fetch
+
+        // Clear existing values that might be fetched
         inputRating.value = '';
+        // Don't clear title/tags/custom here, clear based on fetch intent below
 
         try {
             const response = await fetch(`/fetch-luogu-details?oj=${encodeURIComponent(oj)}&code=${encodeURIComponent(code)}`);
@@ -197,48 +206,79 @@ async function maybeFetchLuoguData(oj, code) {
                 console.error(`[maybeFetchLuoguData] Error fetching details from backend: ${response.status}`);
                 inputRating.placeholder = "Rating Fetch failed";
                 if (fetchTitle) inputTitle.placeholder = "Title Fetch failed";
+                if (fetchTags) inputTags.placeholder = "Tags Fetch failed"; // Show failure if intended to fetch
+                if (fetchCustom) inputCustom.placeholder = "Custom Fetch failed";
                 return;
             }
-            const data = await response.json(); // Expects {"rating": ..., "title": ...}
+            const data = await response.json();
 
-            // Handle Rating
+            // Handle Rating (Always try to populate)
             if (data.rating !== null) {
-                console.log(`[maybeFetchLuoguData] Received Luogu rating: ${data.rating}`);
+                console.log(`[maybeFetchLuoguData] Received Rating: ${data.rating}`);
                 inputRating.value = data.rating;
-                inputRating.placeholder = "";
             } else {
-                console.log("[maybeFetchLuoguData] Luogu rating not found or OJ not supported by backend.");
-                inputRating.placeholder = ""; // Clear placeholder even if not found
+                console.log("[maybeFetchLuoguData] Rating not found.");
             }
+            inputRating.placeholder = "";
 
-            // Handle Title (only if we intended to fetch it)
+            // Handle Title
             if (fetchTitle) {
                 if (data.title) {
-                    console.log(`[maybeFetchLuoguData] Received Luogu title: ${data.title}`);
+                    console.log(`[maybeFetchLuoguData] Received Title: ${data.title}`);
                     inputTitle.value = data.title;
-                    inputTitle.placeholder = "";
                 } else {
-                    console.log("[maybeFetchLuoguData] Luogu title not found.");
-                    inputTitle.placeholder = ""; // Clear placeholder even if not found
+                    console.log("[maybeFetchLuoguData] Title not found.");
                 }
+                inputTitle.placeholder = "";
             } else {
                  console.log("[maybeFetchLuoguData] Title fetch skipped as field was not empty.");
+            }
+
+            // Handle Tags (for ANY OJ if available and field was empty)
+            if (fetchTags) {
+                if (data.tags && Array.isArray(data.tags) && data.tags.length > 0) {
+                    console.log(`[maybeFetchLuoguData] Received Tags for ${oj}: ${data.tags}`);
+                    inputTags.value = data.tags.join(', ');
+                } else {
+                    console.log(`[maybeFetchLuoguData] Tags not found or empty for ${oj}.`);
+                }
+                inputTags.placeholder = ""; // Clear placeholder regardless
+            } else {
+                 console.log(`[maybeFetchLuoguData] Tags fetch skipped for ${oj} as field was not empty.`);
+                 if (inputTags.placeholder.startsWith("Fetching")) inputTags.placeholder = ""; // Clear placeholder if fetch skipped
+            }
+
+            // Handle Custom field (ONLY for AtCoder)
+            if (fetchCustom) { // fetchCustom is true only if oj === 'AtCoder' and field was empty
+                if (data.custom !== null && data.custom !== undefined) {
+                    console.log(`[maybeFetchLuoguData] Received AC Custom data (Score): ${data.custom}`);
+                    inputCustom.value = data.custom;
+                } else {
+                    console.log("[maybeFetchLuoguData] AC Custom data (Score) not found.");
+                }
+                inputCustom.placeholder = ""; // Clear placeholder regardless
+            } else if (oj === 'AtCoder') {
+                 console.log("[maybeFetchLuoguData] AC Custom fetch skipped as field was not empty.");
+                 if (inputCustom.placeholder.startsWith("Fetching")) inputCustom.placeholder = ""; // Clear placeholder if fetch skipped
+            } else {
+                 // For non-AC OJs (including Luogu), ensure custom field is clear if we didn't intend to fetch
+                 if (!inputCustom.value) inputCustom.placeholder = ""; // Clear placeholder if empty
             }
 
         } catch (error) {
             console.error("[maybeFetchLuoguData] Error calling fetch-luogu-details endpoint:", error);
             inputRating.placeholder = "Rating Fetch error";
             if (fetchTitle) inputTitle.placeholder = "Title Fetch error";
+            if (fetchTags) inputTags.placeholder = "Tags Fetch error"; // Show error if intended to fetch
+            if (fetchCustom) inputCustom.placeholder = "Custom Fetch error"; // Only show custom error for AtCoder
         }
     } else {
          console.log("[maybeFetchLuoguData] Conditions not met, fetch skipped.");
          // Clear placeholders if conditions aren't met
-         if (inputRating.placeholder.startsWith("Fetching") || inputRating.placeholder.startsWith("Rating Fetch")) {
-             inputRating.placeholder = "";
-         }
-         if (inputTitle.placeholder.startsWith("Fetching") || inputTitle.placeholder.startsWith("Title Fetch")) {
-             inputTitle.placeholder = "";
-         }
+         if (inputRating.placeholder.startsWith("Fetching")) inputRating.placeholder = "";
+         if (inputTitle.placeholder.startsWith("Fetching")) inputTitle.placeholder = "";
+         if (inputTags.placeholder.startsWith("Fetching")) inputTags.placeholder = "";
+         if (inputCustom.placeholder.startsWith("Fetching")) inputCustom.placeholder = "";
     }
 }
 
@@ -254,6 +294,7 @@ async function parseAndFillFromUrl() {
     let ojChanged = false;
     let codeChanged = false;
     let titleChanged = false; // Track if title changed (specifically from UVA fetch)
+    // No need for tagsChanged/customChanged here, clearing happens before fetch
 
     try {
         // Codeforces:
@@ -278,6 +319,16 @@ async function parseAndFillFromUrl() {
             }
         }
 
+        // Luogu: (Add before UVA)
+        if (!extractedCode) {
+            let luoguMatch = url.match(/luogu\.com\.cn\/problem\/([A-Z0-9_a-z]+)/i);
+            if (luoguMatch && luoguMatch[1]) {
+                extractedOj = "Luogu";
+                extractedCode = luoguMatch[1];
+                console.log(`Matched Luogu: OJ=${extractedOj}, Code=${extractedCode}`);
+            }
+        }
+
         // UVA: Fetch ID and Title (fallback) from backend
         if (!extractedCode) {
             let uvaMatch = url.match(/onlinejudge\.org/i);
@@ -286,8 +337,11 @@ async function parseAndFillFromUrl() {
                 extractedOj = "UVA";
                 inputCode.placeholder = "Fetching UVA ID...";
                 inputTitle.placeholder = "Fetching Title...";
+                // No placeholders for tags/custom for UVA
                 inputCode.value = "";
                 inputTitle.value = "";
+                inputTags.value = ""; // Clear tags field
+                inputCustom.value = ""; // Clear custom field
                 try {
                     const response = await fetch(`/fetch-uva-id?url=${encodeURIComponent(url)}`);
                     if (response.ok) {
@@ -315,7 +369,7 @@ async function parseAndFillFromUrl() {
                     alert(`Network error fetching UVA ID/Title: ${error}`);
                 } finally {
                     inputCode.placeholder = "";
-                    // Don't clear title placeholder yet, Luogu fetch will handle it
+                    // Don't clear title placeholder yet
                 }
             }
         }
@@ -335,30 +389,24 @@ async function parseAndFillFromUrl() {
                     codeChanged = true;
                 }
                 // Set title from UVA fetch *only if* it exists (as fallback)
-                // Luogu fetch will overwrite if it finds a title there
                 if (extractedTitle && !inputTitle.value) {
                     inputTitle.value = extractedTitle;
-                    titleChanged = true; // Indicate title was potentially set
+                    titleChanged = true;
                     console.log(`Setting Title from UVA fetch (fallback): ${extractedTitle}`);
                 }
 
-                // --- Trigger Luogu fetch AFTER updating values ---
-                if (ojChanged || codeChanged) {
-                    console.log("OJ or Code changed, triggering Luogu fetch...");
-                    // Clear title *only if* it wasn't set by UVA fallback
-                    if (!titleChanged) {
-                         inputTitle.value = '';
-                    }
-                    await handleOjOrCodeChange(); // Call the combined handler (which calls maybeFetchLuoguData)
-                } else if (titleChanged) {
-                     // If only title changed (from UVA fallback), still trigger Luogu fetch
-                     // to potentially get rating and a better title
-                     console.log("Only Title changed from UVA fetch, triggering Luogu fetch...");
-                     await handleOjOrCodeChange();
+                // --- Trigger Combined fetch AFTER updating values ---
+                if (ojChanged || codeChanged || titleChanged) {
+                    console.log("OJ, Code, or Title(fallback) changed, triggering combined fetch...");
+                    // Clear fields *before* fetch, respecting OJ rules
+                    if (!titleChanged) inputTitle.value = ''; // Clear title if not set by UVA
+                    // Always clear tags and custom before fetch, maybeFetchLuoguData will populate if applicable
+                    inputTags.value = '';
+                    inputCustom.value = '';
+                    await handleOjOrCodeChange(); // Calls maybeFetchLuoguData
                 } else {
                      console.log("OJ, Code, and Title values did not change.");
                 }
-
             } else {
                 console.warn(`Extracted OJ "${extractedOj}" is not a valid option in the dropdown.`);
             }
@@ -372,6 +420,8 @@ async function parseAndFillFromUrl() {
         if (inputCode.placeholder === "Fetching UVA ID...") inputCode.placeholder = "";
         if (inputRating.placeholder.startsWith("Fetching")) inputRating.placeholder = "";
         if (inputTitle.placeholder.startsWith("Fetching")) inputTitle.placeholder = "";
+        if (inputTags.placeholder.startsWith("Fetching")) inputTags.placeholder = "";
+        if (inputCustom.placeholder.startsWith("Fetching")) inputCustom.placeholder = "";
     }
 }
 
@@ -382,7 +432,7 @@ async function handleSubmit() {
     const code = document.getElementById('input-code').value.trim();
     const title = document.getElementById('input-title').value.trim();
     const ratingInput = document.getElementById('input-rating').value;
-    const custom = document.getElementById('input-custom').value.trim();
+    const custom = document.getElementById('input-custom').value.trim(); // Use inputCustom element
     const tags = document.getElementById('input-tags').value.split(',').map(t => t.trim()).filter(t => t);
     const contest = document.getElementById('input-contest').value.trim() || 'No';
     const problemLink = document.getElementById('input-problem-link').value.trim();
@@ -553,15 +603,22 @@ function renderTable() {
 // Modal show/hide
 function showModal(edit = false) {
   if (!edit) {
+    // Reset all fields when adding a new task
     document.getElementById('input-oj').value = "";
     document.getElementById('input-code').value = '';
     document.getElementById('input-title').value = '';
     document.getElementById('input-rating').value = '';
-    document.getElementById('input-custom').value = '';
-    document.getElementById('input-tags').value = '';
-    document.getElementById('input-problem-link').value = ''; // Reset problem link field
+    document.getElementById('input-custom').value = ''; // Reset custom
+    document.getElementById('input-tags').value = ''; // Reset tags
+    document.getElementById('input-problem-link').value = '';
     document.getElementById('input-contest').value = 'No';
+    // Clear placeholders
+    document.getElementById('input-rating').placeholder = '';
+    document.getElementById('input-title').placeholder = '';
+    document.getElementById('input-tags').placeholder = 'tag1, tag2'; // Default placeholder
+    document.getElementById('input-custom').placeholder = ''; // Default placeholder
   }
+  // When editing, fields are populated by onEdit, placeholders aren't relevant
   modal.classList.remove('hidden');
   modalTitle.textContent = edit ? 'Edit Task' : 'Add Task';
   btnSubmit.textContent = edit ? 'Update' : 'Save';
@@ -587,10 +644,15 @@ function onEdit(e) {
   document.getElementById('input-code').value = task.code;
   document.getElementById('input-title').value = task.title;
   document.getElementById('input-rating').value = task.rating;
-  document.getElementById('input-custom').value = task.custom || '';
-  document.getElementById('input-tags').value = task.tags ? task.tags.join(', ') : '';
+  document.getElementById('input-custom').value = task.custom || ''; // Populate custom field
+  document.getElementById('input-tags').value = task.tags ? task.tags.join(', ') : ''; // Populate tags
   document.getElementById('input-problem-link').value = task.problem_link || ''; // Populate problem link
   document.getElementById('input-contest').value = task.contest || 'No';
+  // Clear any lingering placeholders from previous operations
+  document.getElementById('input-rating').placeholder = '';
+  document.getElementById('input-title').placeholder = '';
+  document.getElementById('input-tags').placeholder = 'tag1, tag2';
+  document.getElementById('input-custom').placeholder = '';
   showModal(true);
 }
 

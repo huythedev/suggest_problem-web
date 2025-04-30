@@ -1,138 +1,105 @@
-# Web Task Manager (Suggest Problem Web)
+# Web Task Manager (Suggest Problem)
 
-A simple web application to manage a list of competitive programming problems from various online judges (OJs). It allows viewing problems publicly and provides an admin interface for adding, editing, deleting, and logging changes.
+A Flask-based web application for managing a list of competitive programming problems from various online judges (OJs). It allows administrators to add, edit, delete, and view problems, and provides a public view for browsing.
 
 ## Features
 
-*   **Public View:** Displays a filterable and sortable list of problems.
-*   **Admin Dashboard:** Secure login for managing problems.
-    *   Add new problems with details (OJ, Code, Title, Rating, Tags, Contest Link, Problem Link, Custom Notes).
-    *   Edit existing problems.
-    *   Delete problems.
-*   **Automatic Data Fetching:**
-    *   Fetches problem rating and title from Luogu.cn based on OJ and Code (supports Codeforces, AtCoder, SPOJ, UVA).
-    *   Parses OJ, Code, and Problem Link from pasted URLs (supports Codeforces, AtCoder, UVA).
-    *   Fetches UVA Problem ID and Title directly from the UVA website URL.
-*   **Filtering & Sorting:**
-    *   Filter problems by multiple OJs.
-    *   Filter problems by tags (AND/OR logic).
-    *   Sort problems by any column.
-*   **Activity Logging:** Records add, update, and delete actions performed by admins.
-*   **Environment Configuration:** Uses `.env` file for sensitive settings like database URI and admin credentials.
-*   **Cross-Platform:** Uses Waitress on Windows and Gunicorn on POSIX systems.
+*   **Problem Management:** Add, edit, and delete problems with details like OJ, Code, Title, Rating, Tags, Custom data (e.g., AtCoder score), and Contest link.
+*   **Multi-OJ Support:** Configured for Codeforces, AtCoder, SPOJ, UVA, and potentially others.
+*   **Automatic Detail Fetching:**
+    *   Attempts to fetch problem Title, Rating, Tags, and Custom data from the source OJ (Codeforces, AtCoder) or Luogu.
+    *   Fetches Luogu difficulty rating as a fallback or primary rating.
+    *   Fetches Luogu tags (numeric IDs) and maps them to English names.
+    *   Combines tags from direct scraping (Codeforces) and Luogu mapping.
+    *   Fetches AtCoder problem score into the 'Custom' field.
+    *   Parses problem OJ/Code from URLs (Codeforces, AtCoder, UVA).
+    *   Fetches UVA problem ID and Title from its URL via a backend endpoint.
+*   **Filtering & Sorting:** Filter problems by selected OJs (multi-select), tags (AND/OR mode), and sort columns.
+*   **Admin Interface:** Secure login for administrators to manage problems.
+*   **Public View:** A read-only view of the problem list for non-logged-in users.
+*   **Activity Logging:** Records actions (add, update, delete) performed by administrators.
+*   **Environment Configuration:** Uses `.env` file for sensitive settings like database URI, secret key, and admin credentials.
+*   **Deployment Ready:** Includes `run.py` script for running with Waitress (Windows) or Gunicorn (POSIX).
 
-## Setup and Installation
+## Setup & Installation
 
-1.  **Clone the Repository:**
+1.  **Clone the repository:**
     ```bash
-    git clone <your-repository-url>
+    git clone https://github.com/huythedev/suggest_problem-web
     cd suggest_problem-web
     ```
-
-2.  **Create a Virtual Environment:**
-    ```bash
-    # Windows
-    python -m venv venv
-    venv\Scripts\activate
-
-    # macOS/Linux
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-
-3.  **Install Dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-## Configuration
-
-1.  **Create `.env` file:** Copy the example file:
-    ```bash
-    # Windows
-    copy .env_example .env
-
-    # macOS/Linux
-    cp .env_example .env
-    ```
-
-2.  **Edit `.env` file:**
-    *   **`MONGO_URI`**: Replace the placeholder with your actual MongoDB connection string (e.g., from MongoDB Atlas). Make sure the database name in the URI (like `YourDbName`) is correct or change it as needed.
-    *   **`FLASK_SECRET_KEY`**: Change this to a long, random, and secret string. This is crucial for session security.
-    *   **Admin Credentials**: Define admin users using numbered pairs starting from 1 (e.g., `ADMIN_USERNAME_1`, `ADMIN_PASSWORD_1`, `ADMIN_USERNAME_2`, `ADMIN_PASSWORD_2`, etc.). The application will load all consecutive pairs found.
-
-    **Example `.env`:**
-    ```properties
-    MONGO_URI='mongodb+srv://myuser:mypassword@mycluster.mongodb.net/problem_database?retryWrites=true&w=majority'
-    FLASK_SECRET_KEY='generate-a-very-secure-random-key-here'
-
-    # Admin Credentials - Use numbered format
-    ADMIN_USERNAME_1='admin'
-    ADMIN_PASSWORD_1='supersecretpassword'
-
-    ADMIN_USERNAME_2='user2'
-    ADMIN_PASSWORD_2='anotherpassword'
-
-    ADMIN_USERNAME_3='editor'
-    ADMIN_PASSWORD_3='editpass123'
-    ```
+2.  **Run the custom setup command:**
+    *   This command will attempt to find your Python installation, create a virtual environment named `venv`, install the required dependencies into it, and prompt you to create the `.env` configuration file.
+    *   Try running with `python3` first if you are on macOS/Linux:
+        ```bash
+        python3 setup.py setup_dev_env
+        ```
+    *   If `python3` doesn't work or you are on Windows, use `python`:
+        ```bash
+        python setup.py setup_dev_env
+        ```
+    *   Follow the prompts to enter your MongoDB URI and initial admin credentials.
+3.  **Activate the virtual environment:**
+    *   The setup command will print the correct activation command for your OS at the end. Typically:
+    *   Windows: `.\venv\Scripts\activate`
+    *   POSIX (Linux/macOS): `source venv/bin/activate`
+    *   **Important:** You need to activate the environment in *every new terminal session* before running the application.
+4.  **(Optional) Review Environment Variables:**
+    *   The `.env` file was created in step 2. You can review or edit it if needed (e.g., to add more admin users or change the `FLASK_SECRET_KEY`).
 
 ## Running the Application
 
-Make sure your virtual environment is activated. Run the application from the project root directory (`e:\Github\suggest_problem-web`):
+1.  **Ensure the virtual environment is activated** (see step 3 in Setup). You should see `(venv)` at the beginning of your terminal prompt.
+2.  Execute the `run.py` script from the project root directory:
+    ```bash
+    python run.py
+    ```
+3.  The script will first check if the environment setup (`venv` directory and `.env` file) is complete. If not, it will instruct you to run the setup command (`python setup.py setup_dev_env`).
+4.  If the setup is complete, the application will be served by Waitress (on Windows) or Gunicorn (on POSIX) at `http://0.0.0.0:12345` by default. Access it via `http://localhost:12345` or `http://<your-ip-address>:12345`.
 
-```bash
-python run.py
+## Environment Variables (`.env`)
+
+*   `MONGO_URI`: Your MongoDB connection string (set during setup).
+*   `FLASK_SECRET_KEY`: A long, random string used for session security (generated during setup).
+*   `ADMIN_USERNAME_X`: Username for admin user X (e.g., `ADMIN_USERNAME_1`, set during setup).
+*   `ADMIN_PASSWORD_X`: Password for admin user X (e.g., `ADMIN_PASSWORD_1`, set during setup).
+*   You can manually add more admins (e.g., `ADMIN_USERNAME_2`, `ADMIN_PASSWORD_2`) to this file.
+
+## Utility Scripts
+
+*   **`clear_logs.py`**: Clears all entries from the `logs` collection in the database after confirmation. Run with `python clear_logs.py` (ensure venv is active).
+
+## Project Structure
+
 ```
-
-The script will detect your operating system and start the appropriate WSGI server (Waitress on Windows, Gunicorn on Linux/macOS) on `0.0.0.0:12345` by default.
-
-You can access the application in your browser at `http://localhost:12345`.
-
-## Usage
-
-### Public View (`/`)
-
-*   Anyone can view the list of problems.
-*   Use the "Select OJ(s)" button to filter by one or more Online Judges.
-*   Use the "Lọc tags" input to filter by tags (comma-separated). Select "OR" or "AND" logic.
-*   Click on column headers (Tên OJ, Mã bài, Tên bài, Rating, etc.) to sort the table.
-*   Problem codes and contest names that are valid URLs will be clickable links.
-
-### Admin Login (`/admin/login`)
-
-*   Access the login page via the link in the public view header or by navigating directly.
-*   Enter credentials for any user defined in the `.env` file (using the numbered format).
-
-### Admin Dashboard (`/admin`)
-
-*   Accessible after successful login.
-*   Provides the same filtering and sorting options as the public view.
-*   **Add Task:**
-    *   Click the "Add Task" button.
-    *   Fill in the details in the modal.
-    *   **OJ & Code:** Required. When you enter these and move focus, the app tries to fetch Rating and Title from Luogu.
-    *   **Problem Link (Optional):** If you paste a supported URL (CF, AC, UVA), the OJ, Code, and potentially Title fields will be auto-filled.
-    *   **Title & Rating:** Required. Can be auto-filled or entered manually.
-    *   **Contest:** Enter a contest name or a URL to the contest page. Defaults to "No".
-    *   **Tags:** Comma-separated list.
-    *   Click "Save".
-*   **Edit Task:**
-    *   Click the "Edit" button on a problem row.
-    *   Modify details in the modal.
-    *   Click "Update".
-*   **Delete Task:**
-    *   Click the "Delete" button on a problem row.
-    *   Confirm the deletion.
-*   **Activity Logs:** Click the "Activity Logs" link in the header to view a history of add, update, and delete actions.
-*   **Logout:** Click the "Logout" link.
-
-### Clearing Logs (`clear_logs.py`)
-
-A utility script is provided to clear the activity logs collection in the database. Run it from the project root with the virtual environment activated:
-
-```bash
-python clear_logs.py
+/
+|-- .env                  # Local environment variables (created by setup, ignored by git)
+|-- .env_example          # Example environment variables
+|-- .gitattributes        # Git line ending configuration
+|-- .gitignore            # Files/directories ignored by git
+|-- app.py                # Flask application factory
+|-- clear_logs.py         # Script to clear database logs
+|-- requirements.txt      # Python dependencies
+|-- run.py                # Script to run the server (Waitress/Gunicorn)
+|-- setup.py              # Standard packaging script + custom setup command
+|
+|-- modules/              # Application modules
+|   |-- __init__.py
+|   |-- auth.py           # Authentication logic and routes
+|   |-- config.py         # Configuration loading (env vars, DB connection)
+|   |-- log_routes.py     # Routes for viewing logs
+|   |-- models.py         # Database interaction functions (CRUD, logging)
+|   |-- problem_routes.py # Core problem fetching, CRUD routes
+|
+|-- static/               # Static files (CSS, JS)
+|   |-- script.js         # Frontend JavaScript logic
+|   |-- style.css         # CSS styles
+|
+|-- templates/            # HTML templates
+|   |-- admin.html        # Admin dashboard view
+|   |-- admin_login.html  # Admin login page
+|   |-- index.html        # Public/main view
+|   |-- logs.html         # Activity logs view
+|
+|-- venv/                 # Virtual environment directory (created by setup, ignored by git)
 ```
-
-It will ask for confirmation before deleting the logs.

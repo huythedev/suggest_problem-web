@@ -12,6 +12,8 @@ from modules.models import (
     update_problem_document
 )
 from modules.auth import login_required
+# Import the tag map from the new file
+from modules.luogu_tag_map import LUOGU_TAG_MAP
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -19,6 +21,10 @@ import time
 import re
 
 problem_bp = Blueprint('problem', __name__)
+
+def _map_luogu_tags(numeric_tags):
+    """Maps Luogu numeric tag IDs to names using LUOGU_TAG_MAP."""
+    return [LUOGU_TAG_MAP.get(tag_id, f"UnknownTag({tag_id})") for tag_id in numeric_tags]
 
 # --- Luogu Fetching Logic ---
 
@@ -46,12 +52,13 @@ def _fetch_with_retries(url, headers, retries=2, timeout=10):
 
 # Helper function to make the actual request and parse data from embedded JSON
 def _fetch_luogu_json(luogu_pid):
-    """Fetches Luogu HTML page, parses embedded JSON, and extracts difficulty and title."""
+    """Fetches Luogu HTML page, parses embedded JSON, and extracts difficulty, title, and tags."""
     url = f"https://www.luogu.com.cn/problem/{luogu_pid}"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     }
-    details = {"rating": None, "title": None} # Initialize details dict
+    # Initialize details dict with tags as an empty list and custom as None
+    details = {"rating": None, "title": None, "tags": [], "custom": None}
 
     try:
         print(f"Fetching Luogu HTML URL: {url}")
@@ -95,6 +102,14 @@ def _fetch_luogu_json(luogu_pid):
                             print(f"Found Luogu title via embedded JSON ({luogu_pid}): {details['title']}")
                         else:
                             print(f"Title key not found within embedded JSON structure for {luogu_pid}.")
+
+                        # Extract tags (numeric IDs)
+                        tags = problem_data.get('tags')
+                        if isinstance(tags, list): # Check if tags is a list
+                            details["tags"] = [str(tag) for tag in tags if isinstance(tag, int)] # Store as list of strings
+                            print(f"Found Luogu tags via embedded JSON ({luogu_pid}): {details['tags']}")
+                        else:
+                            print(f"Tags key not found or not a list within embedded JSON structure for {luogu_pid}.")
 
                     else:
                          print(f"Problem data block not found within embedded JSON structure for {luogu_pid}.")
@@ -145,121 +160,414 @@ def _find_spoj_luogu_code(spoj_code):
     return None
 
 
+# --- Codeforces Scraping Logic (Revised) ---
+def _scrape_codeforces_details(code):
+    """
+    Attempts to scrape title, tag names, and *rating directly from Codeforces.
+    Puts *rating into 'rating' field, tag names into 'tags'. 'custom' is None.
+    Returns details dict or None if scraping fails significantly.
+    """
+    # Initialize details with custom=None
+    details = {"rating": None, "title": None, "tags": [], "custom": None}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    urls_to_try = []
+    match = re.match(r"(\d+)([A-Z]\d*)", code, re.IGNORECASE)
+    if match:
+        contest_id, problem_index = match.groups()
+        urls_to_try = [
+            f"https://codeforces.com/problemset/problem/{contest_id}/{problem_index}",
+            f"https://codeforces.com/contest/{contest_id}/problem/{problem_index}"
+        ]
+    else:
+        print(f"Codeforces code format not recognized for scraping: {code}")
+        return None
+
+    response = None
+    successful_url = None
+    for url in urls_to_try:
+        print(f"Attempting to scrape Codeforces URL: {url}")
+        response = _fetch_with_retries(url, headers)
+        if response:
+            successful_url = url
+            break
+        else:
+            print(f"Scraping failed for URL: {url}")
+
+    if not response:
+        print(f"Failed to fetch Codeforces page for {code} (tried: {urls_to_try}). Scraping failed.")
+        return None
+
+    try:
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        # Extract Title (remains the same)
+        title_div = soup.find('div', class_='title')
+        if title_div:
+            details["title"] = re.sub(r"^[A-Z]\d*\.\s*", "", title_div.get_text(strip=True))
+            # Use a temporary variable before the f-string
+            scraped_title = details['title']
+            print(f"Scraped CF Title: {scraped_title}") # Modified line
+        else:
+            print(f"Could not find title div for CF {code}")
+
+        # Extract Tags and Rating (into 'rating' field)
+        tags_div = soup.find('div', class_='tags')
+        scraped_tags = []
+        if tags_div:
+            tag_boxes = tags_div.find_all('span', class_='tag-box')
+            for tag_span in tag_boxes:
+                tag_text = tag_span.get_text(strip=True)
+                if tag_text.startswith('*'):
+                    try:
+                        rating_value = int(tag_text[1:])
+                        details["rating"] = rating_value
+                        print(f"Scraped CF Rating into Rating field: {details['rating']}")
+                    except ValueError:
+                        print(f"Could not parse rating from CF tag: {tag_text}")
+                        scraped_tags.append(tag_text)
+                else:
+                    scraped_tags.append(tag_text)
+            details["tags"] = scraped_tags
+            print(f"Scraped CF Tags (names): {details['tags']}")
+        else:
+            print(f"Could not find tags div for CF {code}")
+
+        if details["title"] or details["rating"] is not None:
+            return details
+        else:
+            print(f"Scraping CF page {successful_url} yielded no title or rating.")
+            return None
+
+    except Exception as e:
+        print(f"Error parsing Codeforces page {successful_url}: {e}")
+        return None
+
+
+# --- AtCoder Score Scraping Logic (Revised) ---
+def _scrape_atcoder_score(code):
+    """
+    Attempts to scrape score (points) directly from AtCoder problem page.
+    Looks for <p> containing 'Score :' or '配点 :', then extracts from <var>.
+    Returns score as a string or None if not found/failed.
+    """
+    score = None
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    url = None
+    parts = code.split('_')
+    if len(parts) >= 1:
+        contest_id_guess = parts[0]
+        # Updated regex to better match common AtCoder contest IDs
+        if re.match(r"^(abc|arc|agc|ahc|typical90|dp|tdpc|practice)\d*$", contest_id_guess, re.IGNORECASE):
+             url = f"https://atcoder.jp/contests/{contest_id_guess}/tasks/{code}"
+        else:
+             print(f"Cannot reliably determine AtCoder contest URL from code: {code}")
+             return None
+    else:
+        print(f"AtCoder code format not recognized for scraping: {code}")
+        return None
+
+    print(f"Attempting to scrape AtCoder URL for score: {url}")
+    response = _fetch_with_retries(url, headers)
+
+    if not response:
+        print(f"Failed to fetch AtCoder page for score scraping: {url}")
+        return None
+
+    try:
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # Find the task statement div first for better targeting
+        task_statement = soup.find('div', id='task-statement')
+        if not task_statement:
+            print(f"Could not find task statement div for AtCoder {code}")
+            return None # Cannot proceed without the main content area
+
+        # Method 1: Find <p> containing "Score :" or "配点 :", then find <var> inside
+        score_p_tag = None
+        for p_tag in task_statement.find_all('p'):
+            p_text = p_tag.get_text()
+            if "Score :" in p_text or "配点 :" in p_text:
+                score_p_tag = p_tag
+                break
+
+        if score_p_tag:
+            var_tag = score_p_tag.find('var')
+            if var_tag:
+                score_text = var_tag.get_text(strip=True)
+                if score_text.isdigit():
+                    score = score_text
+                    print(f"Scraped AtCoder Score (Method 1: p > var): {score}")
+
+        # Method 2 (Fallback): Regex on the whole task statement text (less reliable)
+        if not score:
+            score_pattern = re.compile(r"(?:Score|配点)\s*:\s*(\d+)\s*(?:points|点)", re.IGNORECASE)
+            match = score_pattern.search(task_statement.get_text())
+            if match:
+                score = match.group(1)
+                print(f"Scraped AtCoder Score (Method 2: Regex Fallback): {score}")
+
+        # Method 3 (Fallback): Find any <var> whose parent mentions score (original fallback)
+        if not score:
+            var_tag = task_statement.find('var')
+            if var_tag and var_tag.parent and ("score" in var_tag.parent.get_text(strip=True).lower() or "配点" in var_tag.parent.get_text(strip=True)):
+                 score_text = var_tag.get_text(strip=True)
+                 if score_text.isdigit():
+                      score = score_text
+                      print(f"Scraped AtCoder Score (Method 3: Parent Fallback): {score}")
+
+        if not score:
+            print(f"Could not find score pattern/structure on AtCoder page for {code}")
+
+    except Exception as e:
+        print(f"Error parsing AtCoder page {url} for score: {e}")
+
+    return score
+
+
+# --- Combined Fetching Logic ---
+
 def fetch_luogu_details(oj, code):
     """
-    Fetches difficulty rating AND title from Luogu.cn based on OJ and code.
-    Prioritizes using Luogu's embedded JSON.
-    Returns a dictionary {"rating": value, "title": value}.
+    Fetches difficulty rating, title, AND tags from Luogu.cn based on OJ and code.
+    Constructs appropriate Luogu PIDs before fetching.
+    Returns a dictionary {"rating": value, "title": value, "tags": [...], "custom": None}.
     """
     luogu_pid = None
-    details = {"rating": None, "title": None} # Default return value
-    pids_tried = [] # Keep track of PIDs tried for logging
+    details = {"rating": None, "title": None, "tags": [], "custom": None}
+    pids_tried = []
 
     print(f"\nAttempting to fetch Luogu details for OJ: {oj}, Code: {code}")
 
-    raw_code_ojs = ["Codeforces", "AtCoder", "UVA"]
+    # If the OJ is Luogu, the code IS the PID. Also try raw code for CF/AC/UVA first.
+    raw_code_ojs = ["Codeforces", "AtCoder", "UVA", "Luogu"]
     if oj in raw_code_ojs:
-        print(f"Attempt 1: Trying raw code '{code}' directly on Luogu.")
+        print(f"Attempt 1 (Luogu): Trying raw code '{code}' directly.")
         pids_tried.append(code)
         details = _fetch_luogu_json(code)
-        if details["rating"] is not None or details["title"] is not None:
-            print(f"Successfully fetched details using raw code '{code}'. Rating: {details['rating']}, Title: {details['title']}")
+        if details["rating"] is not None or details["title"] is not None or details["tags"]:
+            print(f"Successfully fetched Luogu details using raw code '{code}'. Rating: {details['rating']}, Title: {details['title']}, Tags: {details['tags']}")
+            # If the OJ was Luogu and we succeeded, we are done.
+            if oj == "Luogu":
+                return details
+        else:
+            print(f"Raw code '{code}' Luogu fetch failed or returned no details.")
+            # If the OJ was Luogu and raw code failed, we are done for Luogu.
+            if oj == "Luogu":
+                 print(f"Failed to fetch Luogu details for Luogu problem {code}.")
+                 return details # Return empty details
+
+    # If we are here, it means either:
+    # 1. OJ was CF/AC/UVA and raw code failed, OR
+    # 2. OJ was SPOJ (which doesn't try raw code first)
+    # Proceed with OJ-specific PID construction only if not Luogu OJ.
+    if oj != "Luogu":
+        print("Proceeding with OJ-specific PID construction for Luogu.")
+
+        if oj == "Codeforces":
+            # Example: try constructed PID for Codeforces
+            if not code.upper().startswith("CF"):
+                luogu_pid = f"CF{code}"
+                print(f"Attempt 2 (Luogu): Trying constructed PID '{luogu_pid}'.")
+                pids_tried.append(luogu_pid)
+                if details["rating"] is None and details["title"] is None and not details["tags"]:
+                    details = _fetch_luogu_json(luogu_pid)
+        elif oj == "SPOJ":
+            luogu_sp_code = _find_spoj_luogu_code(code)
+            if luogu_sp_code:
+                luogu_pid = luogu_sp_code
+                print(f"Attempt 1 (Luogu): Trying mapped PID '{luogu_pid}'.")
+                pids_tried.append(luogu_pid)
+                details = _fetch_luogu_json(luogu_pid)
+            else:
+                print(f"Could not find Luogu mapping for SPOJ code {code}.")
+        elif oj == "AtCoder":
+            parts = code.split('_')
+            contest_part = parts[0].lower()
+            task_part = parts[1] if len(parts) > 1 else ''
+            pid1 = f"AT{contest_part}{task_part}"
+            pid2 = f"AT_{contest_part}_{task_part}" if '_' in code and task_part else None
+
+            if pid1.lower() != code.lower() and (details["rating"] is None and details["title"] is None and not details["tags"]):
+                print(f"Attempt 2 (Luogu): Trying constructed PID '{pid1}'.")
+                pids_tried.append(pid1)
+                details = _fetch_luogu_json(pid1)
+            elif pid1.lower() == code.lower():
+                print(f"Constructed PID '{pid1}' is same as raw code, skipping attempt 2.")
+
+            if (details["rating"] is None and details["title"] is None and not details["tags"]) and pid2 and pid2.lower() != code.lower():
+                print(f"Attempt 3 (Luogu): Trying constructed PID '{pid2}'.")
+                pids_tried.append(pid2)
+                details = _fetch_luogu_json(pid2)
+                if details["rating"] is None and details["title"] is None and not details["tags"]:
+                    print(f"Second constructed AtCoder format ({pid2}) also failed on Luogu.")
+            elif pid2 and pid2.lower() == code.lower():
+                print(f"Constructed PID '{pid2}' is same as raw code, skipping attempt 3.")
+            elif not pid2:
+                print("Original AtCoder code did not contain '_' or task part, skipping second format attempt.")
+
+            if details["rating"] is not None or details["title"] is not None or details["tags"]:
+                if pid2 in pids_tried:
+                    luogu_pid = pid2
+                elif pid1 in pids_tried:
+                    luogu_pid = pid1
+                else:
+                    luogu_pid = code
+            elif pid2 in pids_tried: luogu_pid = pid2
+            elif pid1 in pids_tried: luogu_pid = pid1
+            else: luogu_pid = code
+
+        elif oj == "UVA":
+            if not code.upper().startswith("UVA"):
+                luogu_pid = f"UVA{code}"
+                print(f"Attempt 2 (Luogu): Trying constructed PID '{luogu_pid}'.")
+                pids_tried.append(luogu_pid)
+                if details["rating"] is None and details["title"] is None and not details["tags"]:
+                    details = _fetch_luogu_json(luogu_pid)
+            else:
+                print("Raw code already started with UVA and failed, skipping second Luogu attempt.")
+                luogu_pid = code
+        else:
+            print(f"OJ '{oj}' not currently supported for Luogu detail fetching.")
             return details
+
+        # Check results after construction attempts (only if not Luogu OJ)
+        if details["rating"] is not None or details["title"] is not None or details["tags"]:
+            log_pid = luogu_pid if luogu_pid else code # Use constructed PID if available
+            print(f"Successfully fetched Luogu details for {oj} {code} (Luogu PID: {log_pid}): Rating={details['rating']}, Title='{details['title']}', Tags={details['tags']}")
         else:
-            print(f"Raw code '{code}' fetch failed or returned no details.")
-
-    print("Proceeding with OJ-specific PID construction for Luogu.")
-
-    if oj == "Codeforces":
-        if not code.upper().startswith("CF"):
-            luogu_pid = f"CF{code}"
-            print(f"Attempt 2: Trying constructed PID '{luogu_pid}'.")
-            pids_tried.append(luogu_pid)
-            details = _fetch_luogu_json(luogu_pid)
-        else:
-            print("Raw code already started with CF and failed, skipping second attempt.")
-            luogu_pid = code
-
-    elif oj == "SPOJ":
-        luogu_sp_code = _find_spoj_luogu_code(code)
-        if luogu_sp_code:
-            luogu_pid = luogu_sp_code
-            pids_tried.append(luogu_pid)
-            details = _fetch_luogu_json(luogu_pid)
-        else:
-            print(f"Could not find Luogu mapping for SPOJ code {code}.")
-
-    elif oj == "AtCoder":
-        parts = code.split('_')
-        contest_part = parts[0].lower()
-        task_part = parts[1] if len(parts) > 1 else ''
-        pid1 = f"AT{contest_part}{task_part}"
-        pid2 = f"AT_{contest_part}_{task_part}" if '_' in code and task_part else None
-
-        if pid1.lower() != code.lower():
-            print(f"Attempt 2: Trying constructed PID '{pid1}'.")
-            pids_tried.append(pid1)
-            details = _fetch_luogu_json(pid1)
-        else:
-            print(f"Constructed PID '{pid1}' is same as raw code, skipping.")
-
-        if (details["rating"] is None and details["title"] is None) and pid2 and pid2.lower() != code.lower():
-             print(f"Attempt 3: Trying constructed PID '{pid2}'.")
-             pids_tried.append(pid2)
-             details = _fetch_luogu_json(pid2)
-             if details["rating"] is None and details["title"] is None:
-                  print(f"Second constructed AtCoder format ({pid2}) also failed.")
-        elif pid2 and pid2.lower() == code.lower():
-             print(f"Constructed PID '{pid2}' is same as raw code, skipping.")
-        elif not pid2:
-             print("Original AtCoder code did not contain '_' or task part, skipping second format.")
-
-        if details["rating"] is not None or details["title"] is not None:
-             if pid2 in pids_tried:
-                 temp_details = _fetch_luogu_json(pid2)
-                 if temp_details["rating"] is not None or temp_details["title"] is not None:
-                     luogu_pid = pid2
-                 elif pid1 in pids_tried:
-                      luogu_pid = pid1
-             elif pid1 in pids_tried:
-                  luogu_pid = pid1
-        elif pid2 in pids_tried: luogu_pid = pid2
-        elif pid1 in pids_tried: luogu_pid = pid1
-        else: luogu_pid = code
-
-    elif oj == "UVA":
-        if not code.upper().startswith("UVA"):
-            luogu_pid = f"UVA{code}"
-            print(f"Attempt 2: Trying constructed PID '{luogu_pid}'.")
-            pids_tried.append(luogu_pid)
-            details = _fetch_luogu_json(luogu_pid)
-        else:
-            print("Raw code already started with UVA and failed, skipping second attempt.")
-            luogu_pid = code
-
-    else:
-        print(f"OJ '{oj}' not currently supported for Luogu detail fetching.")
-        return details
-
-    if details["rating"] is not None or details["title"] is not None:
-        print(f"Successfully fetched details for {oj} {code} (Luogu PID: {luogu_pid}): Rating={details['rating']}, Title='{details['title']}'")
-    else:
-        unique_pids = sorted(list(set(pids_tried)))
-        print(f"Failed to fetch details for {oj} {code} (Tried Luogu PID(s): {', '.join(unique_pids)})")
+            unique_pids = sorted(list(set(pids_tried)))
+            print(f"Failed to fetch Luogu details for {oj} {code} (Tried Luogu PID(s): {', '.join(unique_pids)})")
 
     return details
 
 
+def fetch_details(oj, code):
+    """
+    Fetches details based on OJ.
+    - Codeforces: Tries scrape (title, names, rating). Fetches Luogu (title, numbers, rating). Merges results, mapping Luogu numbers to names.
+    - AtCoder: Fetches Luogu (title, rating, numbers->names). Scrapes AC (score->custom).
+    - SPOJ/UVA: Fetches Luogu (title, rating, numbers->names).
+    - Luogu: Fetches Luogu directly (title, rating, numbers->names).
+    """
+    print(f"\nFetching details for {oj} {code}...")
+    # Default structure
+    final_details = {"rating": None, "title": None, "tags": [], "custom": None}
+    luogu_details = None # Initialize luogu_details
+
+    if oj == "Codeforces":
+        # --- Start Indented Block for Codeforces ---
+        print("Using Codeforces fetching logic.")
+        # 1. Scrape Codeforces directly
+        cf_scraped_details = _scrape_codeforces_details(code)
+        if cf_scraped_details:
+            final_details["rating"] = cf_scraped_details.get("rating") # Rating from CF scrape
+            final_details["title"] = cf_scraped_details.get("title")
+            # Tags from CF scrape are names, store them directly
+            final_details["tags"] = cf_scraped_details.get("tags", [])
+            print(f"CF Scrape results: Rating={final_details['rating']}, Title='{final_details['title']}', Tags={final_details['tags']}")
+        else:
+            print("Codeforces direct scraping failed or yielded no useful data.")
+
+        # 2. Fetch Luogu details (potentially overriding title/rating, adding tags)
+        luogu_details = fetch_luogu_details(oj, code)
+        if luogu_details:
+            # Override rating if Luogu has one and CF didn't, or if Luogu's is non-zero
+            if luogu_details.get("rating") is not None and (final_details["rating"] is None or luogu_details.get("rating") != 0):
+                final_details["rating"] = luogu_details.get("rating")
+                print(f"Using Luogu rating: {final_details['rating']}")
+            # Override title if Luogu has one and CF didn't
+            if luogu_details.get("title") and not final_details["title"]:
+                final_details["title"] = luogu_details.get("title")
+                print(f"Using Luogu title: {final_details['title']}")
+            # Map Luogu numeric tags to names
+            luogu_numeric_tags = luogu_details.get("tags", [])
+            luogu_mapped_tags = _map_luogu_tags(luogu_numeric_tags)
+            print(f"Mapped Luogu tags for CF: {luogu_mapped_tags}")
+            # Combine unique tags (preferring CF scraped names if duplicates exist conceptually)
+            existing_tags_lower = {tag.lower() for tag in final_details["tags"]}
+            for tag in luogu_mapped_tags:
+                if tag.lower() not in existing_tags_lower:
+                    final_details["tags"].append(tag)
+            print(f"Combined unique tags for CF: {final_details['tags']}")
+        else:
+            print("Failed to fetch additional details from Luogu for CF.")
+        # custom remains None for CF
+        return final_details
+        # --- End Indented Block for Codeforces ---
+
+    elif oj == "AtCoder":
+        # --- Start Indented Block for AtCoder ---
+        print("Using AtCoder fetching logic.")
+        # 1. Fetch Luogu details (Title, Rating, Tags)
+        luogu_details = fetch_luogu_details(oj, code)
+        if luogu_details:
+            final_details["rating"] = luogu_details.get("rating")
+            final_details["title"] = luogu_details.get("title")
+            # Fetch and map Luogu tags
+            luogu_numeric_tags = luogu_details.get("tags", [])
+            final_details["tags"] = _map_luogu_tags(luogu_numeric_tags)
+            print(f"Fetched from Luogu for AC: Rating={final_details['rating']}, Title='{final_details['title']}', Tags={final_details['tags']}")
+        else:
+            print("Failed to fetch details from Luogu for AC.")
+
+        # 2. Scrape AtCoder for score (into 'custom' field)
+        atcoder_score = _scrape_atcoder_score(code)
+        if atcoder_score:
+            final_details["custom"] = atcoder_score
+            print(f"Scraped AtCoder score into Custom field: {final_details['custom']}")
+        else:
+            print("Failed to scrape score from AtCoder.")
+        return final_details
+        # --- End Indented Block for AtCoder ---
+
+    elif oj == "Luogu":
+        print(f"Using Luogu fetching logic directly for {oj}.")
+        luogu_details = fetch_luogu_details(oj, code) # Should use raw code
+        if luogu_details:
+            final_details["rating"] = luogu_details.get("rating")
+            final_details["title"] = luogu_details.get("title")
+            # Fetch and map Luogu tags
+            luogu_numeric_tags = luogu_details.get("tags", [])
+            final_details["tags"] = _map_luogu_tags(luogu_numeric_tags)
+            print(f"Mapped Luogu tags for {oj}: {final_details['tags']}")
+        else:
+             print(f"Failed to fetch details from Luogu for {oj}.")
+        # custom remains None
+        return final_details
+
+    elif oj in ["SPOJ", "UVA"]:
+        print(f"Using {oj} fetching logic (via Luogu).")
+        luogu_details = fetch_luogu_details(oj, code)
+        if luogu_details:
+            final_details["rating"] = luogu_details.get("rating")
+            final_details["title"] = luogu_details.get("title")
+            # Fetch and map Luogu tags
+            luogu_numeric_tags = luogu_details.get("tags", [])
+            final_details["tags"] = _map_luogu_tags(luogu_numeric_tags)
+            print(f"Mapped Luogu tags for {oj}: {final_details['tags']}")
+        else:
+             print(f"Failed to fetch details from Luogu for {oj}.")
+        # custom remains None
+        return final_details
+    else:
+        print(f"OJ '{oj}' not supported for automatic detail fetching.")
+        return final_details # Return default empty structure
+
+# --- Routes ---
+
 @problem_bp.route('/fetch-luogu-details', methods=['GET'])
 @login_required
-def fetch_luogu_details_route():
+def fetch_details_route():
     oj = request.args.get('oj')
     code = request.args.get('code')
 
     if not oj or not code:
         return jsonify({"error": "Missing 'oj' or 'code' parameter"}), 400
 
-    details = fetch_luogu_details(oj, code)
+    details = fetch_details(oj, code)
 
     return jsonify(details)
 

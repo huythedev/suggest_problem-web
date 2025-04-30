@@ -28,7 +28,7 @@ if SECRET_KEY == 'default-secret-key-please-change':
     warnings.warn("FLASK_SECRET_KEY not set in environment. Using insecure default.")
 
 # --- Allowed OJs ---
-ALLOWED_OJS = ["Codeforces", "AtCoder", "UVA", "SPOJ", "Other"] # Add more as needed
+ALLOWED_OJS = ["Codeforces", "AtCoder", "UVA", "SPOJ", "Luogu", "Other"] # Add more as needed
 
 # --- Admin Credentials ---
 ADMIN_CREDENTIALS = {}
