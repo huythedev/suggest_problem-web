@@ -1,7 +1,7 @@
 from flask import Blueprint, request, session, redirect, url_for, flash, render_template, jsonify
 from functools import wraps
-# Use absolute import
-from config import ADMINS
+# Use absolute import with modules. prefix
+from modules.config import ADMIN_CREDENTIALS as ADMINS # ADMINS is a dict {username: password}
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -24,25 +24,25 @@ def admin_login():
     if request.method == 'POST':
         username_attempt = request.form.get('username')
         password_attempt = request.form.get('password')
-        login_successful = False
-        for admin in ADMINS:
-            if admin['username'] == username_attempt and admin['password'] == password_attempt:
-                session['logged_in'] = True
-                session['username'] = username_attempt
-                flash('Login successful!', 'success')
-                next_url = request.args.get('next')
-                login_successful = True
-                # Use blueprint name for other routes if they are in blueprints
-                return redirect(next_url or url_for('problem.admin_dashboard')) # Assuming admin_dashboard is in 'problem' blueprint
 
-        if not login_successful:
+        # Check if the username exists in the ADMINS dict and the password matches
+        if username_attempt in ADMINS and ADMINS[username_attempt] == password_attempt:
+            session['logged_in'] = True
+            session['username'] = username_attempt
+            flash('Login successful!', 'success')
+            next_url = request.args.get('next')
+            # Use blueprint name for other routes if they are in blueprints
+            return redirect(next_url or url_for('problem.admin_dashboard')) # Assuming admin_dashboard is in 'problem' blueprint
+        else:
+            # Login failed
             flash('Invalid credentials. Please try again.', 'danger')
-            return render_template('admin_login.html')
+            # No need to return render_template here, let it fall through to the GET part if needed
 
+    # Handle GET request or failed POST attempt (render login page)
     if 'logged_in' in session:
-        # Use blueprint name
+        # If already logged in, redirect to dashboard
         return redirect(url_for('problem.admin_dashboard'))
-    return render_template('admin_login.html')
+    return render_template('admin_login.html') # Render login page for GET or failed POST
 
 
 @auth_bp.route('/admin/logout')

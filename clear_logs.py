@@ -2,23 +2,23 @@ import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
+# Load environment variables first to potentially set MONGO_URI before config is imported
+load_dotenv()
+
+# Now import config which relies on MONGO_URI
+from modules.config import db
+
 def clear_logs_collection():
     """Connects to MongoDB and clears the 'logs' collection after confirmation."""
-    load_dotenv() # Load environment variables from .env
+    # MONGO_URI is now handled within config.py, we just need the db object
 
-    mongo_uri = os.environ.get('MONGO_URI')
-    if not mongo_uri:
-        print("Error: MONGO_URI not found in environment variables or .env file.")
+    if db is None:
+        print("Error: Database connection (db object) is None. Cannot clear logs.")
         return
 
     try:
-        print(f"Connecting to MongoDB at {mongo_uri.split('@')[-1]}...") # Hide credentials in print
-        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-        # Test connection
-        client.admin.command('ping')
-        print("MongoDB connection: SUCCESS")
-
-        db = client['web_task_manager'] # Use the correct database name
+        # db object is already connected via config.py
+        print(f"Using database: {db.name}")
         logs_collection = db['logs']    # Access the logs collection
 
         count = logs_collection.count_documents({})
@@ -38,10 +38,7 @@ def clear_logs_collection():
 
     except Exception as e:
         print(f"An error occurred: {e}")
-    finally:
-        if 'client' in locals() and client:
-            client.close()
-            print("MongoDB connection closed.")
+    # No need to manually close client here, as config.py handles the connection
 
 if __name__ == "__main__":
     clear_logs_collection()

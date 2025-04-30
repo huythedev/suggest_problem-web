@@ -5,29 +5,22 @@ import sys
 # Define the host and port
 host = "0.0.0.0"
 port = "12345"
-# Use the package name (assuming the folder is the package) and the app object
-# If your folder name has hyphens, Python might not treat it as a package directly.
-# Let's stick with 'app:app' for now and ensure the path is correct.
 app_module = "app:app"
 
 # Get the absolute path to the directory containing this script (project root)
-project_root = os.path.dirname(os.path.abspath(__file__))
-# Get the parent directory of the project root
-parent_dir = os.path.dirname(project_root)
+# project_root = os.path.dirname(os.path.abspath(__file__)) # Not strictly needed now
 
-# Prepare environment variables for the subprocess
-# Add the *parent* directory to PYTHONPATH so Python can find the 'suggest_problem-web' package
-# Or add the project_root itself if 'app.py' is directly importable from there. Let's try project_root first.
-env = os.environ.copy()
-# Prepend project_root to PYTHONPATH, creating it if it doesn't exist
-env['PYTHONPATH'] = project_root + os.pathsep + env.get('PYTHONPATH', '')
-print(f"Setting PYTHONPATH for subprocess: {env['PYTHONPATH']}")
+# --- Remove environment preparation ---
+# env = os.environ.copy()
+# env['PYTHONPATH'] = project_root
+# print(f"Setting PYTHONPATH for subprocess to: {env['PYTHONPATH']}")
+# --- End removal ---
 
 # Determine the operating system
 if os.name == 'nt':  # Windows
     print(f"Detected Windows. Starting Waitress server on {host}:{port}...")
     command = [
-        sys.executable,
+        sys.executable, # Use the same python interpreter that's running this script
         "-m",
         "waitress",
         f"--host={host}",
@@ -41,18 +34,15 @@ elif os.name == 'posix':  # Linux, macOS, etc.
         "-w", "4",
         "-b", f"{host}:{port}",
         app_module
-        # Gunicorn might need --chdir project_root depending on setup
-        # "--chdir", project_root,
     ]
 else:
     print(f"Unsupported operating system: {os.name}")
     sys.exit(1)
 
-# Run the command with the modified environment
+# Run the command simply, assuming run.py is executed from the project root
 try:
     print(f"Executing command: {' '.join(command)}")
-    # Pass the modified environment to the subprocess
-    subprocess.run(command, check=True, env=env)
+    subprocess.run(command, check=True) # Removed env=env, cwd=project_root
 except FileNotFoundError:
     server_name = "Waitress" if os.name == 'nt' else "Gunicorn"
     print(f"Error: {server_name} not found. Make sure it's installed.")

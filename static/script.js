@@ -9,7 +9,7 @@ let tbody, modal, modalTitle, btnSubmit, btnAdd, btnCancel, filterTags, filterMo
 // Custom OJ Filter elements
 let ojFilterBtn, ojFilterDropdown, ojFilterCheckboxes;
 // Modal input elements for fetching and link
-let inputOj, inputCode, inputRating, inputProblemLink;
+let inputOj, inputCode, inputRating, inputProblemLink, inputTitle;
 
 // Load data from backend
 async function loadData() {
@@ -68,14 +68,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   inputCode = document.getElementById('input-code');
   inputRating = document.getElementById('input-rating');
   inputProblemLink = document.getElementById('input-problem-link');
+  inputTitle = document.getElementById('input-title'); // Assign title input
 
   // Verify elements are found (update check)
-  if (!tbody || !modal || !modalTitle || !btnSubmit || /* btnAdd might be null */ !btnCancel || !ojFilterBtn || !ojFilterDropdown || !filterTags || !filterMode || !inputOj || !inputCode || !inputRating || !inputProblemLink) {
+  if (!tbody || !modal || !modalTitle || !btnSubmit || /* btnAdd might be null */ !btnCancel || !ojFilterBtn || !ojFilterDropdown || !filterTags || !filterMode || !inputOj || !inputCode || !inputRating || !inputProblemLink || !inputTitle) { // Add inputTitle check
       console.error("Error: One or more essential DOM elements not found!");
       // Don't return immediately if btnAdd is the only missing one (public view)
       if (!btnAdd && document.body.classList.contains('public-view')) {
           console.log("Note: Add button not found, likely public view.");
-      } else if (!tbody || !modal || !modalTitle || !btnSubmit || !btnCancel || !ojFilterBtn || !ojFilterDropdown || !filterTags || !filterMode || !inputOj || !inputCode || !inputRating || !inputProblemLink) {
+      } else if (!tbody || !modal || !modalTitle || !btnSubmit || !btnCancel || !ojFilterBtn || !ojFilterDropdown || !filterTags || !filterMode || !inputOj || !inputCode || !inputRating || !inputProblemLink || !inputTitle) { // Add inputTitle check
           return; // Stop if other critical elements missing
       }
   }
@@ -136,9 +137,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
   btnSubmit.addEventListener('click', handleSubmit); // Use named function
 
-  // Add listeners to modal OJ and Code inputs for fetching Luogu data
-  inputOj.addEventListener('change', maybeFetchLuoguData); // Use change for select
-  inputCode.addEventListener('blur', maybeFetchLuoguData); // Use blur for text input
+  // Add listeners to modal OJ and Code inputs for fetching Luogu data AND Title
+  inputOj.addEventListener('change', handleOjOrCodeChange); // Use a combined handler
+  inputCode.addEventListener('blur', handleOjOrCodeChange); // Use a combined handler
 
   // Add listener for the Problem Link input
   if (inputProblemLink) {
@@ -160,87 +161,115 @@ function updateOjFilterButtonText() {
     }
 }
 
-// Function to attempt fetching Luogu data
-async function maybeFetchLuoguData() {
+// Combined handler for OJ/Code changes to fetch Rating and Title from Luogu
+async function handleOjOrCodeChange() {
     const oj = inputOj.value;
     const code = inputCode.value.trim();
-    const supportedOJs = ["SPOJ", "Codeforces", "AtCoder", "UVA"]; // OJs supported by our backend fetcher
+
+    // Fetch Rating & Title from Luogu
+    await maybeFetchLuoguData(oj, code); // Pass oj and code
+}
+
+// Function to attempt fetching Luogu data (Rating AND Title)
+async function maybeFetchLuoguData(oj, code) {
+    const supportedOJs = ["SPOJ", "Codeforces", "AtCoder", "UVA"];
 
     console.log(`[maybeFetchLuoguData] Triggered. OJ: "${oj}", Code: "${code}"`);
 
-    // Fetch if OJ is supported and code is entered, regardless of current rating value.
     const shouldFetch = supportedOJs.includes(oj) && code;
-    console.log(`[maybeFetchLuoguData] Conditions check: supportedOJ=${supportedOJs.includes(oj)}, hasCode=${!!code}. Should Fetch: ${shouldFetch}`); // Updated log
+    console.log(`[maybeFetchLuoguData] Conditions check: supportedOJ=${supportedOJs.includes(oj)}, hasCode=${!!code}. Should Fetch: ${shouldFetch}`);
 
     if (shouldFetch) {
-        console.log(`[maybeFetchLuoguData] Attempting to fetch Luogu data for ${oj} - ${code}`);
-        // Optional: Show a loading indicator near the rating field
-        inputRating.placeholder = "Fetching...";
-        // Clear existing value before fetching new one
+        console.log(`[maybeFetchLuoguData] Attempting to fetch Luogu details for ${oj} - ${code}`);
+        // Set placeholders for both fields
+        inputRating.placeholder = "Fetching Rating...";
+        // Fetch title only if the field is currently empty
+        const fetchTitle = !inputTitle.value.trim();
+        if (fetchTitle) {
+            inputTitle.placeholder = "Fetching Title...";
+        }
+        // Clear existing rating value
         inputRating.value = '';
+
         try {
             const response = await fetch(`/fetch-luogu-details?oj=${encodeURIComponent(oj)}&code=${encodeURIComponent(code)}`);
             if (!response.ok) {
-                // Handle HTTP errors from our backend endpoint
                 console.error(`[maybeFetchLuoguData] Error fetching details from backend: ${response.status}`);
-                // Optionally show an error message to the user
-                inputRating.placeholder = "Fetch failed"; // Reset placeholder
+                inputRating.placeholder = "Rating Fetch failed";
+                if (fetchTitle) inputTitle.placeholder = "Title Fetch failed";
                 return;
             }
-            const data = await response.json();
+            const data = await response.json(); // Expects {"rating": ..., "title": ...}
+
+            // Handle Rating
             if (data.rating !== null) {
                 console.log(`[maybeFetchLuoguData] Received Luogu rating: ${data.rating}`);
-                inputRating.value = data.rating; // Set the rating input
-                inputRating.placeholder = ""; // Clear placeholder
+                inputRating.value = data.rating;
+                inputRating.placeholder = "";
             } else {
                 console.log("[maybeFetchLuoguData] Luogu rating not found or OJ not supported by backend.");
-                inputRating.placeholder = ""; // Clear placeholder
+                inputRating.placeholder = ""; // Clear placeholder even if not found
             }
+
+            // Handle Title (only if we intended to fetch it)
+            if (fetchTitle) {
+                if (data.title) {
+                    console.log(`[maybeFetchLuoguData] Received Luogu title: ${data.title}`);
+                    inputTitle.value = data.title;
+                    inputTitle.placeholder = "";
+                } else {
+                    console.log("[maybeFetchLuoguData] Luogu title not found.");
+                    inputTitle.placeholder = ""; // Clear placeholder even if not found
+                }
+            } else {
+                 console.log("[maybeFetchLuoguData] Title fetch skipped as field was not empty.");
+            }
+
         } catch (error) {
             console.error("[maybeFetchLuoguData] Error calling fetch-luogu-details endpoint:", error);
-            inputRating.placeholder = "Fetch error"; // Reset placeholder
+            inputRating.placeholder = "Rating Fetch error";
+            if (fetchTitle) inputTitle.placeholder = "Title Fetch error";
         }
     } else {
          console.log("[maybeFetchLuoguData] Conditions not met, fetch skipped.");
-         // Clear placeholder if conditions aren't met (e.g., user cleared code)
-         if (inputRating.placeholder === "Fetching..." || inputRating.placeholder === "Fetch failed" || inputRating.placeholder === "Fetch error") {
+         // Clear placeholders if conditions aren't met
+         if (inputRating.placeholder.startsWith("Fetching") || inputRating.placeholder.startsWith("Rating Fetch")) {
              inputRating.placeholder = "";
+         }
+         if (inputTitle.placeholder.startsWith("Fetching") || inputTitle.placeholder.startsWith("Title Fetch")) {
+             inputTitle.placeholder = "";
          }
     }
 }
 
-// Function to parse URL and fill OJ/Code fields
-function parseAndFillFromUrl() {
+// Function to parse URL and fill OJ/Code fields - NOW ASYNC
+async function parseAndFillFromUrl() {
     const url = inputProblemLink.value.trim();
-    if (!url) return; // Exit if URL is empty
+    if (!url) return;
 
     console.log(`Parsing URL: ${url}`);
     let extractedOj = null;
     let extractedCode = null;
+    let extractedTitle = null; // Title from UVA fetch (fallback)
     let ojChanged = false;
     let codeChanged = false;
+    let titleChanged = false; // Track if title changed (specifically from UVA fetch)
 
     try {
         // Codeforces:
-        // 1. problemset/problem/CONTEST/INDEX
-        // 2. contest/CONTEST/problem/INDEX
-        // Regex captures CONTEST and INDEX separately for both patterns
         let cfMatch = url.match(/codeforces\.com\/(?:problemset\/problem\/(\d+)\/([A-Z]\d*)|contest\/(\d+)\/problem\/([A-Z]\d*))/i);
-
         if (cfMatch) {
-            // Check which capture groups matched
-            const contestId = cfMatch[1] || cfMatch[3]; // Use group 1 or group 3
-            const problemIndex = cfMatch[2] || cfMatch[4]; // Use group 2 or group 4
-
+            const contestId = cfMatch[1] || cfMatch[3];
+            const problemIndex = cfMatch[2] || cfMatch[4];
             if (contestId && problemIndex) {
                 extractedOj = "Codeforces";
-                extractedCode = contestId + problemIndex.toUpperCase(); // Combine contestId and index
+                extractedCode = contestId + problemIndex.toUpperCase();
                 console.log(`Matched Codeforces: OJ=${extractedOj}, Code=${extractedCode}`);
             }
         }
 
-        // AtCoder: contests/CONTEST_ID/tasks/TASK_ID
-        if (!extractedCode) { // Only try if CF didn't match
+        // AtCoder:
+        if (!extractedCode) {
             let acMatch = url.match(/atcoder\.jp\/contests\/([a-z0-9_-]+)\/tasks\/([a-z0-9_]+)/i);
             if (acMatch && acMatch[2]) {
                 extractedOj = "AtCoder";
@@ -249,29 +278,54 @@ function parseAndFillFromUrl() {
             }
         }
 
-        // UVA: onlinejudge.org/...&problem=PROBLEM_ID or /external/VOL/PROBLEM_ID.pdf
-        if (!extractedCode) { // Only try if CF/AtCoder didn't match
-            let uvaMatch1 = url.match(/onlinejudge\.org\/.*(?:problem=|problem_id=)(\d+)/i);
-            let uvaMatch2 = url.match(/onlinejudge\.org\/external\/\d+\/(\d+)\.pdf/i);
-            if (uvaMatch1 && uvaMatch1[1]) {
+        // UVA: Fetch ID and Title (fallback) from backend
+        if (!extractedCode) {
+            let uvaMatch = url.match(/onlinejudge\.org/i);
+            if (uvaMatch) {
+                console.log("Detected UVA URL, fetching ID & Title (fallback) from backend...");
                 extractedOj = "UVA";
-                extractedCode = uvaMatch1[1];
-                console.log(`Matched UVA (Option 1): OJ=${extractedOj}, Code=${extractedCode}`);
-            } else if (uvaMatch2 && uvaMatch2[1]) {
-                extractedOj = "UVA";
-                extractedCode = uvaMatch2[1];
-                console.log(`Matched UVA (Option 2): OJ=${extractedOj}, Code=${extractedCode}`);
+                inputCode.placeholder = "Fetching UVA ID...";
+                inputTitle.placeholder = "Fetching Title...";
+                inputCode.value = "";
+                inputTitle.value = "";
+                try {
+                    const response = await fetch(`/fetch-uva-id?url=${encodeURIComponent(url)}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.uva_id) {
+                            extractedCode = data.uva_id;
+                            console.log(`Received UVA ID from backend: ${extractedCode}`);
+                        } else {
+                            console.warn("Backend could not extract UVA ID from page.");
+                        }
+                        // Store title from UVA fetch as a potential fallback
+                        if (data.title) {
+                            extractedTitle = data.title;
+                            console.log(`Received UVA Title (fallback) from backend: ${extractedTitle}`);
+                        } else {
+                             console.warn("Backend could not extract UVA Title from page.");
+                        }
+                    } else {
+                        console.error(`Backend fetch for UVA ID/Title failed: ${response.status}`);
+                        const errorData = await response.json().catch(() => ({}));
+                        alert(`Failed to fetch UVA ID/Title from backend: ${errorData.error || response.statusText}`);
+                    }
+                } catch (error) {
+                    console.error("Error calling /fetch-uva-id endpoint:", error);
+                    alert(`Network error fetching UVA ID/Title: ${error}`);
+                } finally {
+                    inputCode.placeholder = "";
+                    // Don't clear title placeholder yet, Luogu fetch will handle it
+                }
             }
         }
 
-        // If OJ and Code were extracted, update the form fields and trigger events
+        // If OJ and Code were determined
         if (extractedOj && extractedCode) {
             const ojOptionExists = Array.from(inputOj.options).some(option => option.value === extractedOj);
 
             if (ojOptionExists) {
                 console.log(`Updating form: OJ=${extractedOj}, Code=${extractedCode}`);
-
-                // Check if values actually changed before updating and dispatching
                 if (inputOj.value !== extractedOj) {
                     inputOj.value = extractedOj;
                     ojChanged = true;
@@ -280,32 +334,44 @@ function parseAndFillFromUrl() {
                     inputCode.value = extractedCode;
                     codeChanged = true;
                 }
-
-                // Dispatch events *after* setting values
-                // Dispatch 'change' for OJ dropdown
-                if (ojChanged) {
-                    console.log("Dispatching 'change' event on OJ input");
-                    inputOj.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-                // Dispatch 'blur' for Code input (to mimic user leaving the field)
-                if (codeChanged) {
-                    console.log("Dispatching 'blur' event on Code input");
-                    inputCode.dispatchEvent(new Event('blur', { bubbles: true }));
+                // Set title from UVA fetch *only if* it exists (as fallback)
+                // Luogu fetch will overwrite if it finds a title there
+                if (extractedTitle && !inputTitle.value) {
+                    inputTitle.value = extractedTitle;
+                    titleChanged = true; // Indicate title was potentially set
+                    console.log(`Setting Title from UVA fetch (fallback): ${extractedTitle}`);
                 }
 
-                if (!ojChanged && !codeChanged) {
-                     console.log("OJ and Code values did not change.");
+                // --- Trigger Luogu fetch AFTER updating values ---
+                if (ojChanged || codeChanged) {
+                    console.log("OJ or Code changed, triggering Luogu fetch...");
+                    // Clear title *only if* it wasn't set by UVA fallback
+                    if (!titleChanged) {
+                         inputTitle.value = '';
+                    }
+                    await handleOjOrCodeChange(); // Call the combined handler (which calls maybeFetchLuoguData)
+                } else if (titleChanged) {
+                     // If only title changed (from UVA fallback), still trigger Luogu fetch
+                     // to potentially get rating and a better title
+                     console.log("Only Title changed from UVA fetch, triggering Luogu fetch...");
+                     await handleOjOrCodeChange();
+                } else {
+                     console.log("OJ, Code, and Title values did not change.");
                 }
 
             } else {
                 console.warn(`Extracted OJ "${extractedOj}" is not a valid option in the dropdown.`);
             }
-        } else {
-            console.log("URL did not match known patterns.");
+        } else if (url && extractedOj !== "UVA") {
+            console.log("URL did not match known patterns or UVA ID/Title fetch failed.");
         }
 
     } catch (error) {
-        console.error("Error during URL parsing:", error);
+        console.error("Error during URL parsing or subsequent fetches:", error);
+        // Reset placeholders
+        if (inputCode.placeholder === "Fetching UVA ID...") inputCode.placeholder = "";
+        if (inputRating.placeholder.startsWith("Fetching")) inputRating.placeholder = "";
+        if (inputTitle.placeholder.startsWith("Fetching")) inputTitle.placeholder = "";
     }
 }
 
@@ -421,6 +487,15 @@ function renderTable() {
   }
 
   tbody.innerHTML = ''; // Clear existing rows
+
+  if (filtered.length === 0) {
+    // Add a visible message when no problems are found
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="8" style="text-align: center; padding: 20px;">No problems found. Click "Add Task" to add your first problem.</td>';
+    tbody.appendChild(tr);
+    return;
+  }
+
   filtered.forEach(({ task, i }) => {
     const tr = document.createElement('tr');
 

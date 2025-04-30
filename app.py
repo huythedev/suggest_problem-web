@@ -1,11 +1,10 @@
 from flask import Flask
 from flask_cors import CORS
 
-# Use absolute imports
-from config import SECRET_KEY, db
-from auth import auth_bp
-from problem_routes import problem_bp
-from log_routes import log_bp
+from modules.config import SECRET_KEY, db
+from modules.auth import auth_bp
+from modules.problem_routes import problem_bp
+from modules.log_routes import log_bp
 
 # Create and configure the app
 app = Flask(__name__, static_folder='static', template_folder='templates')
