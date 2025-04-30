@@ -140,6 +140,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   inputOj.addEventListener('change', maybeFetchLuoguData); // Use change for select
   inputCode.addEventListener('blur', maybeFetchLuoguData); // Use blur for text input
 
+  // Add listener for the Problem Link input
+  if (inputProblemLink) {
+      inputProblemLink.addEventListener('input', parseAndFillFromUrl); // Use 'input' for paste/type
+  }
+
   console.log("Event listeners attached.");
 }); // End of DOMContentLoaded listener
 
@@ -159,19 +164,20 @@ function updateOjFilterButtonText() {
 async function maybeFetchLuoguData() {
     const oj = inputOj.value;
     const code = inputCode.value.trim();
-    const currentRating = inputRating.value; // Get current rating value
     const supportedOJs = ["SPOJ", "Codeforces", "AtCoder", "UVA"]; // OJs supported by our backend fetcher
 
-    console.log(`[maybeFetchLuoguData] Triggered. OJ: "${oj}", Code: "${code}", Current Rating: "${currentRating}"`);
+    console.log(`[maybeFetchLuoguData] Triggered. OJ: "${oj}", Code: "${code}"`);
 
-    // Only fetch if OJ is supported, code is entered, and rating is currently empty
-    const shouldFetch = supportedOJs.includes(oj) && code && !currentRating;
-    console.log(`[maybeFetchLuoguData] Conditions check: supportedOJ=${supportedOJs.includes(oj)}, hasCode=${!!code}, ratingIsEmpty=${!currentRating}. Should Fetch: ${shouldFetch}`);
+    // Fetch if OJ is supported and code is entered, regardless of current rating value.
+    const shouldFetch = supportedOJs.includes(oj) && code;
+    console.log(`[maybeFetchLuoguData] Conditions check: supportedOJ=${supportedOJs.includes(oj)}, hasCode=${!!code}. Should Fetch: ${shouldFetch}`); // Updated log
 
     if (shouldFetch) {
         console.log(`[maybeFetchLuoguData] Attempting to fetch Luogu data for ${oj} - ${code}`);
         // Optional: Show a loading indicator near the rating field
         inputRating.placeholder = "Fetching...";
+        // Clear existing value before fetching new one
+        inputRating.value = '';
         try {
             const response = await fetch(`/fetch-luogu-details?oj=${encodeURIComponent(oj)}&code=${encodeURIComponent(code)}`);
             if (!response.ok) {
@@ -200,6 +206,106 @@ async function maybeFetchLuoguData() {
          if (inputRating.placeholder === "Fetching..." || inputRating.placeholder === "Fetch failed" || inputRating.placeholder === "Fetch error") {
              inputRating.placeholder = "";
          }
+    }
+}
+
+// Function to parse URL and fill OJ/Code fields
+function parseAndFillFromUrl() {
+    const url = inputProblemLink.value.trim();
+    if (!url) return; // Exit if URL is empty
+
+    console.log(`Parsing URL: ${url}`);
+    let extractedOj = null;
+    let extractedCode = null;
+    let ojChanged = false;
+    let codeChanged = false;
+
+    try {
+        // Codeforces:
+        // 1. problemset/problem/CONTEST/INDEX
+        // 2. contest/CONTEST/problem/INDEX
+        // Regex captures CONTEST and INDEX separately for both patterns
+        let cfMatch = url.match(/codeforces\.com\/(?:problemset\/problem\/(\d+)\/([A-Z]\d*)|contest\/(\d+)\/problem\/([A-Z]\d*))/i);
+
+        if (cfMatch) {
+            // Check which capture groups matched
+            const contestId = cfMatch[1] || cfMatch[3]; // Use group 1 or group 3
+            const problemIndex = cfMatch[2] || cfMatch[4]; // Use group 2 or group 4
+
+            if (contestId && problemIndex) {
+                extractedOj = "Codeforces";
+                extractedCode = contestId + problemIndex.toUpperCase(); // Combine contestId and index
+                console.log(`Matched Codeforces: OJ=${extractedOj}, Code=${extractedCode}`);
+            }
+        }
+
+        // AtCoder: contests/CONTEST_ID/tasks/TASK_ID
+        if (!extractedCode) { // Only try if CF didn't match
+            let acMatch = url.match(/atcoder\.jp\/contests\/([a-z0-9_-]+)\/tasks\/([a-z0-9_]+)/i);
+            if (acMatch && acMatch[2]) {
+                extractedOj = "AtCoder";
+                extractedCode = acMatch[2];
+                console.log(`Matched AtCoder: OJ=${extractedOj}, Code=${extractedCode}`);
+            }
+        }
+
+        // UVA: onlinejudge.org/...&problem=PROBLEM_ID or /external/VOL/PROBLEM_ID.pdf
+        if (!extractedCode) { // Only try if CF/AtCoder didn't match
+            let uvaMatch1 = url.match(/onlinejudge\.org\/.*(?:problem=|problem_id=)(\d+)/i);
+            let uvaMatch2 = url.match(/onlinejudge\.org\/external\/\d+\/(\d+)\.pdf/i);
+            if (uvaMatch1 && uvaMatch1[1]) {
+                extractedOj = "UVA";
+                extractedCode = uvaMatch1[1];
+                console.log(`Matched UVA (Option 1): OJ=${extractedOj}, Code=${extractedCode}`);
+            } else if (uvaMatch2 && uvaMatch2[1]) {
+                extractedOj = "UVA";
+                extractedCode = uvaMatch2[1];
+                console.log(`Matched UVA (Option 2): OJ=${extractedOj}, Code=${extractedCode}`);
+            }
+        }
+
+        // If OJ and Code were extracted, update the form fields and trigger events
+        if (extractedOj && extractedCode) {
+            const ojOptionExists = Array.from(inputOj.options).some(option => option.value === extractedOj);
+
+            if (ojOptionExists) {
+                console.log(`Updating form: OJ=${extractedOj}, Code=${extractedCode}`);
+
+                // Check if values actually changed before updating and dispatching
+                if (inputOj.value !== extractedOj) {
+                    inputOj.value = extractedOj;
+                    ojChanged = true;
+                }
+                if (inputCode.value !== extractedCode) {
+                    inputCode.value = extractedCode;
+                    codeChanged = true;
+                }
+
+                // Dispatch events *after* setting values
+                // Dispatch 'change' for OJ dropdown
+                if (ojChanged) {
+                    console.log("Dispatching 'change' event on OJ input");
+                    inputOj.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                // Dispatch 'blur' for Code input (to mimic user leaving the field)
+                if (codeChanged) {
+                    console.log("Dispatching 'blur' event on Code input");
+                    inputCode.dispatchEvent(new Event('blur', { bubbles: true }));
+                }
+
+                if (!ojChanged && !codeChanged) {
+                     console.log("OJ and Code values did not change.");
+                }
+
+            } else {
+                console.warn(`Extracted OJ "${extractedOj}" is not a valid option in the dropdown.`);
+            }
+        } else {
+            console.log("URL did not match known patterns.");
+        }
+
+    } catch (error) {
+        console.error("Error during URL parsing:", error);
     }
 }
 
