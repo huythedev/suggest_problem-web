@@ -19,12 +19,35 @@ from bs4 import BeautifulSoup
 import json
 import time
 import re
+# Import the translator
+from deep_translator import GoogleTranslator
+from deep_translator.exceptions import TranslationNotFound
 
 problem_bp = Blueprint('problem', __name__)
 
 def _map_luogu_tags(numeric_tags):
     """Maps Luogu numeric tag IDs to names using LUOGU_TAG_MAP."""
     return [LUOGU_TAG_MAP.get(tag_id, f"UnknownTag({tag_id})") for tag_id in numeric_tags]
+
+# --- Translation Helper ---
+def _translate_to_english(text):
+    """Translates text to English using Google Translate via deep_translator."""
+    if not text or not any(ord(char) > 127 for char in text): # Basic check if translation might be needed
+        print(f"Skipping translation for: '{text}' (Likely already English or empty)")
+        return text # Assume English or empty, return as is
+
+    try:
+        print(f"Attempting to translate: '{text}'")
+        # Auto-detect source language, translate to English
+        translated_text = GoogleTranslator(source='auto', target='en').translate(text)
+        print(f"Translation result: '{translated_text}'")
+        return translated_text if translated_text else text # Return original if translation is empty
+    except TranslationNotFound:
+        print(f"Translation not found for: '{text}'")
+        return text # Return original if translation service can't find it
+    except Exception as e:
+        print(f"Error translating '{text}': {e}")
+        return text # Return original on any other error
 
 # --- Luogu Fetching Logic ---
 
@@ -52,7 +75,7 @@ def _fetch_with_retries(url, headers, retries=2, timeout=10):
 
 # Helper function to make the actual request and parse data from embedded JSON
 def _fetch_luogu_json(luogu_pid):
-    """Fetches Luogu HTML page, parses embedded JSON, and extracts difficulty, title, and tags."""
+    """Fetches Luogu HTML page, parses embedded JSON, extracts difficulty, title, tags, and translates title."""
     url = f"https://www.luogu.com.cn/problem/{luogu_pid}"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -98,8 +121,11 @@ def _fetch_luogu_json(luogu_pid):
                         # Extract title
                         title = problem_data.get('title')
                         if title:
-                            details["title"] = title.strip()
-                            print(f"Found Luogu title via embedded JSON ({luogu_pid}): {details['title']}")
+                            original_title = title.strip()
+                            print(f"Found Luogu title via embedded JSON ({luogu_pid}): {original_title}")
+                            # --- Translate Title ---
+                            details["title"] = _translate_to_english(original_title)
+                            # --- End Translation ---
                         else:
                             print(f"Title key not found within embedded JSON structure for {luogu_pid}.")
 
