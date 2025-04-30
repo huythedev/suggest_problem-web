@@ -59,18 +59,22 @@ A simple web application to manage a list of competitive programming problems fr
 2.  **Edit `.env` file:**
     *   **`MONGO_URI`**: Replace the placeholder with your actual MongoDB connection string (e.g., from MongoDB Atlas). Make sure the database name in the URI (like `YourDbName`) is correct or change it as needed.
     *   **`FLASK_SECRET_KEY`**: Change this to a long, random, and secret string. This is crucial for session security.
-    *   **Admin Credentials**: Modify or add `ADMIN_USERNAME` and `ADMIN_PASSWORD` pairs. The application reads all pairs defined in the `.env` file. The *last* pair defined for a given key (`ADMIN_USERNAME`, `ADMIN_PASSWORD`) will overwrite previous ones during loading, but `config.py` is designed to load *all* unique username/password combinations found.
+    *   **Admin Credentials**: Define admin users using numbered pairs starting from 1 (e.g., `ADMIN_USERNAME_1`, `ADMIN_PASSWORD_1`, `ADMIN_USERNAME_2`, `ADMIN_PASSWORD_2`, etc.). The application will load all consecutive pairs found.
 
     **Example `.env`:**
     ```properties
     MONGO_URI='mongodb+srv://myuser:mypassword@mycluster.mongodb.net/problem_database?retryWrites=true&w=majority'
     FLASK_SECRET_KEY='generate-a-very-secure-random-key-here'
 
-    ADMIN_USERNAME='admin'
-    ADMIN_PASSWORD='supersecretpassword'
+    # Admin Credentials - Use numbered format
+    ADMIN_USERNAME_1='admin'
+    ADMIN_PASSWORD_1='supersecretpassword'
 
-    ADMIN_USERNAME='user2'
-    ADMIN_PASSWORD='anotherpassword'
+    ADMIN_USERNAME_2='user2'
+    ADMIN_PASSWORD_2='anotherpassword'
+
+    ADMIN_USERNAME_3='editor'
+    ADMIN_PASSWORD_3='editpass123'
     ```
 
 ## Running the Application
@@ -98,7 +102,7 @@ You can access the application in your browser at `http://localhost:12345`.
 ### Admin Login (`/admin/login`)
 
 *   Access the login page via the link in the public view header or by navigating directly.
-*   Enter credentials defined in the `.env` file.
+*   Enter credentials for any user defined in the `.env` file (using the numbered format).
 
 ### Admin Dashboard (`/admin`)
 
