@@ -25,7 +25,7 @@ A simple web application to manage a list of competitive programming problems fr
 
 1.  **Clone the Repository:**
     ```bash
-    git clone <your-repository-url>
+    git clone https://github.com/huythedev/suggest_problem-web
     cd suggest_problem-web
     ```
 
