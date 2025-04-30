@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Logs - Web Task Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Add specific styles for logs page if needed */
+        .logs-table th, .logs-table td {
+            text-align: left; /* Override centered style for logs */
+            vertical-align: top;
+            font-size: 0.85rem;
+        }
+        .logs-table td pre { /* Style for details */
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
+            font-size: 0.8rem;
+            background-color: #f8f9fa;
+            padding: 5px;
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container main-container">
+        <header>
+            <h1>Activity Logs</h1>
+            <div style="text-align: center; margin-top: -10px; margin-bottom: 20px;">
+                Logged in as: <strong>{{ session.username }}</strong> |
+                <a href="{{ url_for('problem.admin_dashboard') }}">Admin Dashboard</a> |
+                <a href="{{ url_for('auth.admin_logout') }}">Logout</a>
+            </div>
+        </header>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="table-wrapper">
+            <table class="logs-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp (UTC)</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Problem OJ</th>
+                        <th>Problem Code</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if logs %}
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else 'N/A' }}</td>
+                            <td>{{ log.username }}</td>
+                            <td>{{ log.action | capitalize }}</td>
+                            <td>{{ log.problem_oj }}</td>
+                            <td>{{ log.problem_code }}</td>
+                            <td>
+                                {% if log.details_json %}
+                                    <pre>{{ log.details_json }}</pre>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center;">No logs found.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

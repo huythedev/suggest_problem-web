@@ -1,0 +1,412 @@
+/* CSS Variables */
+:root {
+  --primary-color: #007bff;
+  --primary-hover-color: #0056b3;
+  --secondary-color: #6c757d;
+  --secondary-hover-color: #5a6268;
+  --danger-color: #dc3545;
+  --danger-hover-color: #c82333;
+  --warning-color: #ffc107;
+  --warning-hover-color: #e0a800;
+  --light-color: #f8f9fa;
+  --dark-color: #343a40;
+  --background-color: #f4f7f6;
+  --card-background-color: #ffffff;
+  --text-color: #212529;
+  --border-color: #dee2e6;
+  --border-radius: 0.375rem; /* 6px */
+  --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  --box-shadow-lg: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Global */
+* { box-sizing: border-box; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+  line-height: 1.5;
+}
+.container {
+  max-width: 1140px; /* Wider container */
+  margin: 30px auto;
+  padding: 0 15px;
+}
+header {
+  margin-bottom: 30px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+}
+header h1 {
+  text-align: center;
+  margin-bottom: 0;
+  font-size: 2.25rem;
+  color: var(--dark-color);
+  font-weight: 500;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px; /* Increased gap */
+  margin-bottom: 25px;
+  align-items: center;
+}
+.input, .select {
+  flex: 1 1 180px; /* Allow wrapping */
+  padding: 0.5rem 0.75rem; /* 8px 12px */
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-size: 0.95rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+.input:focus, .select:focus {
+  border-color: var(--primary-color);
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+.btn {
+  padding: 0.5rem 1rem; /* 8px 16px */
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  line-height: 1.5; /* Ensure consistent height */
+}
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+.btn-primary:hover {
+  background-color: var(--primary-hover-color);
+}
+.btn-secondary {
+  background-color: var(--secondary-color);
+  color: white;
+}
+.btn-secondary:hover {
+  background-color: var(--secondary-hover-color);
+}
+#btn-add {
+  flex-grow: 0; /* Don't let add button grow */
+}
+
+/* Table */
+.table-wrapper {
+  overflow-x: auto;
+  background: var(--card-background-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  border: 1px solid var(--border-color);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+th, td {
+  padding: 0.75rem 1rem; /* 12px 16px */
+  text-align: center; /* Center align all columns */
+  vertical-align: middle; /* Align content vertically */
+  border-bottom: 1px solid var(--border-color);
+  max-width: 200px; /* Add max-width to prevent overly wide columns */
+  overflow: hidden; /* Needed for text-overflow */
+  text-overflow: ellipsis; /* Show ... for overflow */
+  white-space: nowrap; /* Prevent wrapping by default */
+}
+thead th {
+  background-color: var(--light-color);
+  color: var(--dark-color);
+  font-weight: 600;
+  border-bottom-width: 2px; /* Thicker bottom border for header */
+  cursor: pointer; /* Indicate sortable columns */
+}
+tbody tr:last-child td {
+  border-bottom: none; /* Remove border from last row */
+}
+tbody tr:nth-child(even) {
+  background-color: var(--background-color); /* Subtle striping */
+}
+tbody tr:hover {
+  background-color: rgba(0, 123, 255, 0.05); /* Light blue hover */
+}
+td:last-child { /* Actions column */
+  white-space: nowrap; /* Prevent buttons wrapping */
+}
+button.edit-btn, button.delete-btn {
+  padding: 0.3rem 0.6rem; /* Smaller padding */
+  font-size: 0.85rem;
+  border-radius: var(--border-radius);
+  border: none;
+  cursor: pointer;
+  margin-left: 5px;
+  transition: background-color 0.15s ease-in-out;
+}
+button.edit-btn {
+  background: var(--warning-color);
+  color: var(--text-color);
+}
+button.edit-btn:hover {
+  background: var(--warning-hover-color);
+}
+button.delete-btn {
+  background: var(--danger-color);
+  color: white;
+}
+button.delete-btn:hover {
+  background: var(--danger-hover-color);
+}
+
+/* Specific style for contest link */
+td a.contest-link {
+  display: inline-block; /* Allows max-width and overflow */
+  max-width: 180px; /* Adjust max-width for links within the cell padding */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle; /* Align link nicely with other text */
+  color: var(--primary-color); /* Make link color consistent */
+  text-decoration: none; /* Optional: remove underline */
+}
+
+td a.contest-link:hover {
+  text-decoration: underline; /* Add underline on hover */
+  color: var(--primary-hover-color);
+}
+
+/* Specific style for problem code link */
+td a.problem-code-link {
+  display: inline-block; /* Allows max-width and overflow */
+  max-width: 150px; /* Adjust max-width for code links */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+td a.problem-code-link:hover {
+  text-decoration: underline;
+  color: var(--primary-hover-color);
+}
+
+/* Allow wrapping for specific columns if needed, e.g., Title or Tags */
+th[data-key="title"], td:nth-child(3), /* Title column */
+th[data-key="tags"], td:nth-child(6) { /* Tags column */
+  white-space: normal; /* Allow wrapping */
+  overflow: visible; /* Override overflow for wrapping columns */
+  text-overflow: clip; /* Override ellipsis */
+}
+
+/* Hide controls for public view */
+.public-view .controls #btn-add,
+.public-view #task-table .edit-btn,
+.public-view #task-table .delete-btn {
+  display: none;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); /* Darker overlay */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0; /* Start hidden for transition */
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.modal:not(.hidden) { /* Use :not(.hidden) for showing */
+  opacity: 1;
+  visibility: visible;
+}
+.modal-content {
+  background: var(--card-background-color);
+  padding: 25px 30px;
+  border-radius: var(--border-radius);
+  width: 100%;
+  max-width: 450px; /* Slightly wider modal */
+  box-shadow: var(--box-shadow-lg);
+  transform: translateY(-20px); /* Start slightly up */
+  transition: transform 0.3s ease;
+}
+.modal:not(.hidden) .modal-content {
+  transform: translateY(0); /* Animate in */
+}
+#modal-title {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+.form-group {
+  margin-bottom: 1rem; /* 16px */
+}
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem; /* 8px */
+  font-weight: 500;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 25px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Styles for Login Page */
+.login-container {
+  max-width: 400px;
+  margin: 100px auto;
+  padding: 30px;
+  background-color: var(--card-background-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow-lg);
+  border: 1px solid var(--border-color);
+}
+
+.login-container h1 {
+  text-align: center;
+  margin-bottom: 25px;
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: var(--dark-color);
+}
+
+.login-container .form-group {
+  margin-bottom: 1rem;
+}
+
+.login-container label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.login-container .input {
+  width: 100%; /* Make inputs full width */
+}
+
+.login-container .btn {
+  width: 100%; /* Make button full width */
+  margin-top: 1rem;
+}
+
+.alert {
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius);
+}
+
+.alert-danger {
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+}
+
+/* Add styles for other common alert types */
+.alert-success {
+  color: #155724;
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+}
+
+.alert-warning {
+  color: #856404;
+  background-color: #fff3cd;
+  border-color: #ffeeba;
+}
+
+.alert-info {
+  color: #0c5460;
+  background-color: #d1ecf1;
+  border-color: #bee5eb;
+}
+
+/* Custom Multiselect Dropdown Styles */
+.multiselect-container {
+  position: relative; /* Needed for absolute positioning of dropdown */
+  display: inline-block; /* Or block, depending on layout needs */
+  min-width: 180px; /* Match input/select width */
+  flex: 1 1 180px; /* Allow wrapping like other controls */
+}
+
+.multiselect-btn {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--card-background-color);
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.multiselect-btn:focus {
+  border-color: var(--primary-color);
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.multiselect-dropdown {
+  position: absolute;
+  top: 100%; /* Position below the button */
+  left: 0;
+  width: 100%;
+  max-height: 200px; /* Limit height and allow scrolling */
+  overflow-y: auto;
+  background-color: var(--card-background-color);
+  border: 1px solid var(--border-color);
+  border-top: none; /* Avoid double border */
+  border-radius: 0 0 var(--border-radius) var(--border-radius);
+  box-shadow: var(--box-shadow);
+  z-index: 1000; /* Ensure it appears above other elements */
+  padding: 5px 0;
+}
+
+.multiselect-dropdown.hidden {
+  display: none;
+}
+
+.multiselect-item {
+  padding: 5px 15px;
+  display: flex;
+  align-items: center;
+}
+
+.multiselect-item label {
+  margin-left: 8px;
+  cursor: pointer;
+  flex-grow: 1; /* Allow label to take space */
+  font-weight: normal; /* Override potential bolding */
+  margin-bottom: 0; /* Override form-group label margin */
+}
+
+.multiselect-item input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+}
+
+.multiselect-item:hover {
+  background-color: var(--background-color);
+}

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Task Manager</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="{{ 'public-view' if is_public else '' }}">
+  <div class="container main-container">
+    <header>
+      <h1>Web Task Manager</h1>
+      {% if is_public %}
+      <div style="text-align: center; margin-top: -10px; margin-bottom: 20px;">
+        <a href="{{ url_for('auth.admin_login') }}">Admin Login</a>
+      </div>
+      {% endif %}
+    </header>
+    <div class="controls">
+      <!-- Custom Multi-select OJ Filter -->
+      <div class="multiselect-container">
+        <button type="button" id="oj-filter-btn" class="multiselect-btn">Select OJ(s)</button>
+        <div id="oj-filter-dropdown" class="multiselect-dropdown hidden">
+            {% for oj_name in allowed_ojs %}
+            <div class="multiselect-item">
+                <input type="checkbox" id="oj-{{ loop.index }}" class="oj-filter-checkbox" value="{{ oj_name }}">
+                <label for="oj-{{ loop.index }}">{{ oj_name }}</label>
+            </div>
+            {% endfor %}
+        </div>
+      </div>
+      <!-- End Custom Multi-select -->
+
+      <input type="text" id="filter-tags" class="input" placeholder="Lọc tags (phân cách ,)...">
+      <select id="filter-mode" class="select">
+        <option value="or">OR</option>
+        <option value="and">AND</option>
+      </select>
+      <button id="btn-add" class="btn btn-primary">Add Task</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="task-table">
+        <thead>
+          <tr>
+            <th data-key="oj">Tên OJ</th>
+            <th data-key="code">Mã bài</th>
+            <th data-key="title">Tên bài</th>
+            <th data-key="rating">Rating</th>
+            <th data-key="custom">Custom</th>
+            <th data-key="tags">Tags</th>
+            <th data-key="contest">Contest</th> <!-- Add Contest header -->
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="modal-title">Add Task</h2>
+      <form>
+        <div class="form-group">
+          <label for="input-oj">OJ:</label>
+          <!-- OJ Input Dropdown -->
+          <select id="input-oj" class="select" required>
+            <option value="" disabled selected>Select OJ</option> <!-- Placeholder -->
+            {% for oj_name in allowed_ojs %}
+              <option value="{{ oj_name }}">{{ oj_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="input-code">Code:</label>
+          <input type="text" id="input-code" class="input" required>
+        </div>
+        <!-- Add Problem Link form group (Optional) -->
+        <div class="form-group">
+          <label for="input-problem-link">Problem Link (Optional):</label>
+          <input type="url" id="input-problem-link" class="input" placeholder="https://example.com/problem/123">
+        </div>
+        <div class="form-group">
+          <label for="input-title">Title:</label>
+          <input type="text" id="input-title" class="input" required>
+        </div>
+        <div class="form-group">
+          <label for="input-rating">Rating:</label>
+          <input type="number" id="input-rating" class="input" required>
+        </div>
+        <div class="form-group">
+          <label for="input-custom">Custom:</label>
+          <input type="text" id="input-custom" class="input">
+        </div>
+        <div class="form-group">
+          <label for="input-tags">Tags:</label>
+          <input type="text" id="input-tags" class="input" placeholder="tag1, tag2">
+        </div>
+        <!-- Add Contest form group -->
+        <div class="form-group">
+          <label for="input-contest">Contest:</label>
+          <input type="text" id="input-contest" class="input" value="No"> <!-- Default value -->
+        </div>
+        <div class="modal-actions">
+          <button id="btn-submit" type="button" class="btn btn-primary">Save</button>
+          <button id="btn-cancel" type="button" class="btn btn-secondary">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
